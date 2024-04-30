@@ -1,0 +1,41 @@
+name: test
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 0 * * 1
+  pull_request:
+    paths:
+    - git_author_stats/**
+    - pyproject.toml
+    - setup.py
+    - setup.cfg
+    - pyproject.toml
+    - tests/**
+    - requirements.txt
+    - tox.ini
+    - .github/**
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+        - ubuntu-latest
+        - windows-latest
+        - macos-latest
+        python:
+        - 3.8
+        - 3.9
+        - '3.10'
+        - 3.11
+        - 3.12
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python }}
+    - name: install
+      run: make ci-install
+    - name: test
+      run: make test
