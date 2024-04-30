@@ -1,0 +1,17 @@
+**/*~
+**/.*
+build
+dist
+venv
+**.pyc
+**.pyo
+**.egg
+**.sqlite
+**/__pycache__
+*.egg-info
+**/*.egg-info
+**/*.dist-info
+pip-wheel-metadata
+!.github
+!.gitignore
+!.flake8

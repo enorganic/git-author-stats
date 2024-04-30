@@ -1,0 +1,28 @@
+[build-system]
+requires = [
+    "setuptools",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 79
+target-version = [
+    "py38",
+    "py39",
+    "py310",
+    "py311",
+    "py312",
+]
+
+[tool.isort]
+profile = "black"
+src_paths = [
+    "git_author_stats",
+    "tests",
+    "scripts",
+    "setup.py",
+]
+line_length = 79
+wrap_length = 79
+multi_line_output = 3
+extend_skip = []
