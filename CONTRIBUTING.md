@@ -8,7 +8,7 @@
     clone this repository (replacing "~/Code", below, with the directory
     under which you want your project to reside), then run `make`:
 
-    ```shell script
+    ```bash
     cd ~/Code && \
     git clone\
     https://github.com/enorganic/git-author-stats.git\
@@ -17,7 +17,15 @@
     make
     ```
 
-2. Create a new branch for your changes (replacing "descriptive-branch-name"
+2. [Create a personal access token](https://bit.ly/46mVout), and create a
+   `.env` file (in the project root) in which to store your token. It should
+   look as follows (replacing "***" with the token you created):
+
+   ```text
+   GITHUB_TOKEN=***
+   ```
+
+3. Create a new branch for your changes (replacing "descriptive-branch-name"
    with a *descriptive branch name*, and replacing *feature* with *bugfix*
    if the branch addresses a bug):
 
@@ -25,20 +33,21 @@
     git branch feature/descriptive-branch-name
     ```
 
-3. Make some changes.
-4. Format and lint your code:
+4. Make some changes.
+
+5. Format and lint your code:
 
     ```shell
     make format
     ```
 
-5. Test your changes:
+6. Test your changes:
 
     ```shell
     make test
     ```
 
-6. Push your changes and create a pull request.
+7. Push your changes and create a pull request.
 
 ## For Everyone Else
 

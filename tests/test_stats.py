@@ -1,8 +1,10 @@
+import os
 from datetime import date, timedelta
 from typing import Optional
 
 import pandas  # type: ignore
 import pytest
+from dotenv import load_dotenv
 
 from git_author_stats._stats import (
     Frequency,
@@ -14,6 +16,8 @@ from git_author_stats._stats import (
     iter_stats,
     parse_frequency_string,
 )
+
+load_dotenv()
 
 
 def test_parse_frequency_string() -> None:
@@ -103,6 +107,9 @@ def test_iter_organization_stats() -> None:
         urls="https://github.com/enorganic",
         frequency=Frequency(2, FrequencyUnit.WEEK),
         since=date.today() - timedelta(days=30),
+        password=os.environ.get(
+            "GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")
+        ),
     ):
         print(stats)
 

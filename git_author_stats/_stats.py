@@ -1,4 +1,3 @@
-from io import BytesIO
 import os
 import re
 import shutil
@@ -8,9 +7,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import Enum
 from operator import itemgetter
-from subprocess import (
-    CalledProcessError, check_call, check_output
-)
+from subprocess import CalledProcessError, check_call, check_output
 from tempfile import mkdtemp, mktemp
 from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Union, cast
 from urllib.parse import ParseResult
