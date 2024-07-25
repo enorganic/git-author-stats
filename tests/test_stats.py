@@ -107,9 +107,7 @@ def test_iter_organization_stats() -> None:
         urls="https://github.com/enorganic",
         frequency=Frequency(2, FrequencyUnit.WEEK),
         since=date.today() - timedelta(days=30),
-        password=os.environ.get(
-            "GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")
-        ),
+        user=os.environ.get("GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")),
     ):
         print(stats)
 
