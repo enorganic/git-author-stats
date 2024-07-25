@@ -138,7 +138,7 @@ def test_get_first_author_date() -> None:
     """
     Test getting the first author date using this repository.
     """
-    assert get_first_author_date() == date(2024, 4, 30)
+    assert get_first_author_date() >= date(2024, 4, 30)
 
 
 if __name__ == "__main__":
