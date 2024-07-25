@@ -190,7 +190,12 @@ def clone(
         if since is not None:
             # Test to see if the error was due to the date
             try:
-                shutil.rmtree(clone(url, user=user, password=password))
+                shutil.rmtree(
+                    clone(url, user=user, password=password),
+                    # We only care about errors from the `clone` function call,
+                    # `rmtree` is just a cleanup operation
+                    ignore_errors=True,
+                )
             except Exception:
                 raise error
             # Cleanup the directory and return an empty string to indicate no
