@@ -384,7 +384,9 @@ def get_first_author_date(path: str = "") -> date:
         line: str
         for line in output.split("\n"):
             if line.startswith("Date:"):
-                return datetime.fromisoformat(line[5:].strip()).date()
+                return datetime.fromisoformat(
+                    line[5:].strip().rstrip("Z")
+                ).date()
         raise ValueError(output)
     finally:
         if path:
