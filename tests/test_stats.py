@@ -18,7 +18,9 @@ from git_author_stats._stats import (
     parse_frequency_string,
 )
 
-load_dotenv(Path(__file__).parent.parent / ".env", override=True)
+env_path: Path = Path(__file__).parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path, override=True)
 
 
 def test_parse_frequency_string() -> None:
@@ -103,13 +105,17 @@ def test_iter_organization_stats() -> None:
     """
     Test obtaining stats for a Github organization
     """
+    password: str = os.environ.get(
+        "GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")
+    )
+    assert password
     found: bool = False
     stats: Stats
     for stats in iter_stats(
         urls="https://github.com/enorganic",
         frequency=Frequency(2, FrequencyUnit.WEEK),
         since=date.today() - timedelta(days=30),
-        user=os.environ.get("GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")),
+        password=password,
     ):
         found = True
         break
