@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import Enum
 from operator import itemgetter
+from pathlib import Path
 from subprocess import CalledProcessError
 from subprocess import check_output as _check_output
 from tempfile import mkdtemp, mktemp
@@ -59,7 +60,7 @@ def update_url_user_password(
       invalid character (defaults to `urllib.parse.quote`)
     """
     assert url
-    if not user or password:
+    if not (user or password):
         return url
     parse_result: ParseResult = urlparse(url)
     host: str
@@ -82,7 +83,7 @@ def update_url_user_password(
         else:
             # The password is a token
             user_password = quote(password)
-    return urlunparse(
+    updated_url: str = urlunparse(
         (
             parse_result.scheme,
             f"{user_password}@{host}",
@@ -92,6 +93,9 @@ def update_url_user_password(
             parse_result.fragment,
         )
     )
+    if password:
+        assert url != updated_url
+    return updated_url
 
 
 def is_github_organization(
@@ -229,20 +233,23 @@ def normalize_author(author: str) -> str:
     return unicodedata.normalize("NFKD", str(author)).strip().capitalize()
 
 
-def iter_local_repo_author_names(path: str) -> Iterable[str]:
+def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
+    current_directory: str = ""
     if path:
-        current_directory: str = os.getcwd()
+        current_directory = os.getcwd()
         path = os.path.abspath(path)
         os.chdir(path)
     try:
-        line: str
-        for line in (
-            check_output(("git", "--no-pager", "shortlog", "-se"))
-            .strip()
-            .splitlines()
-        ):
-            name: str = line.strip().partition(" ")[2]
-            yield name
+        # Only look for authors if there is at least one commit
+        if int(check_output(("git", "rev-list", "--all", "--count")).strip()):
+            line: str
+            for line in (
+                check_output(("git", "--no-pager", "shortlog", "-se"))
+                .strip()
+                .splitlines()
+            ):
+                name: str = line.strip().partition(" ")[2]
+                yield name
     finally:
         if path:
             # Return to the original working directory
@@ -389,9 +396,10 @@ _STATS_PATTERN: re.Pattern = re.compile(
 )
 
 
-def get_first_author_date(path: str = "") -> date:
+def get_first_author_date(path: Union[str, Path] = "") -> date:
+    current_directory: str = ""
     if path:
-        current_directory: str = os.getcwd()
+        current_directory = os.getcwd()
         path = os.path.abspath(path)
         os.chdir(path)
     try:

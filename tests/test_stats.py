@@ -19,6 +19,7 @@ from git_author_stats._stats import (
 )
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
+ROOT_PATH: Path = Path(__file__).parent.parent
 
 
 def test_parse_frequency_string() -> None:
@@ -154,7 +155,7 @@ def test_get_first_author_date() -> None:
     """
     Test getting the first author date using this repository.
     """
-    assert get_first_author_date() >= date(2024, 4, 30)
+    assert get_first_author_date(ROOT_PATH) >= date(2024, 4, 30)
 
 
 if __name__ == "__main__":
