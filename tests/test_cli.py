@@ -19,7 +19,7 @@ def test_cli() -> None:
             (date.today() - timedelta(days=365)).isoformat(),
         ],
         text=True,
-    ).splitlines()
+    ).split("\n")
     assert len(lines) > 1
 
 

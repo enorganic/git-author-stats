@@ -10,6 +10,7 @@ from operator import itemgetter
 from pathlib import Path
 from subprocess import CalledProcessError
 from subprocess import check_output as _check_output
+from subprocess import list2cmdline
 from tempfile import mkdtemp, mktemp
 from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Union, cast
 from urllib.parse import ParseResult
@@ -17,7 +18,7 @@ from urllib.parse import quote as _quote
 from urllib.parse import urlparse, urlunparse
 
 
-def check_output(command: Tuple[str, ...]) -> str:
+def check_output(command: Tuple[str, ...], echo: bool = False) -> str:
     """
     This function wraps `subprocess.check_output`, but redirects stderr
     to a temporary file, then deletes that file (a platform-independent
@@ -27,9 +28,13 @@ def check_output(command: Tuple[str, ...]) -> str:
 
     - command (Tuple[str, ...]): The command to run
     """
+    if echo:
+        print("$", "cd", os.getcwd(), "&& ", list2cmdline(command))
     stderr_path: str = mktemp()
     with open(stderr_path, "w") as stderr:
         output = _check_output(command, stderr=stderr, text=True)
+    if echo:
+        print(output)
     os.remove(stderr_path)
     return output
 
@@ -246,7 +251,7 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
             for line in (
                 check_output(("git", "--no-pager", "shortlog", "-se"))
                 .strip()
-                .splitlines()
+                .split()
             ):
                 name: str = line.strip().partition(" ")[2]
                 yield name
@@ -612,6 +617,7 @@ def iter_stats(  # noqa: C901
     assert since and before and since < before
     # Get a mapping of author names to the best formatted variation of the
     # author's name
+    print(all_author_names)
     author_names_best: Dict[str, str] = map_authors_names(all_author_names)
     # Yield stats for each author, for each repository, for each time period
     for url, path in urls_paths:
