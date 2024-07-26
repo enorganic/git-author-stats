@@ -19,12 +19,14 @@ def test_iter_organization_repository_clone_urls() -> None:
         unauthenticated_urls
     ), unauthenticated_urls
     # Authenticated
+    password: str = (
+        os.environ.get("GH_TOKEN", "").strip()
+        or os.environ.get("GITHUB_TOKEN", "").strip()
+    )
     authenticated_urls: Tuple[str, ...] = tuple(
         iter_organization_repository_clone_urls(
             "github.com/enorganic",
-            password=os.environ.get(
-                "GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")
-            ),
+            password=password,
         )
     )
     assert "https://github.com/enorganic/dependence.git" in (

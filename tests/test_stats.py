@@ -103,8 +103,9 @@ def test_iter_organization_stats() -> None:
     """
     Test obtaining stats for a Github organization
     """
-    password: str = os.environ.get(
-        "GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")
+    password: str = (
+        os.environ.get("GH_TOKEN", "").strip()
+        or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
     found: bool = False
@@ -124,8 +125,9 @@ def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """
-    password: str = os.environ.get(
-        "GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")
+    password: str = (
+        os.environ.get("GH_TOKEN", "").strip()
+        or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
     stats: Tuple[Stats, ...] = tuple(
