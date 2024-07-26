@@ -247,18 +247,23 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
     try:
         # Only look for authors if there is at least one commit
         if int(check_output(("git", "rev-list", "--all", "--count")).strip()):
+            found: bool = False
             line: str
+            output: str = check_output(
+                ("git", "--no-pager", "shortlog", "-se")
+            )
             for line in filter(
                 None,
-                check_output(("git", "--no-pager", "shortlog", "-se"))
-                .strip()
-                .split("\n"),
+                output.strip().split("\n"),
             ):
                 name: str = (
                     re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
                 )
                 assert name, line
+                found = True
                 yield name
+            if not found:
+                raise RuntimeError(f"No authors found:\n{output}")
     finally:
         if path:
             # Return to the original working directory
