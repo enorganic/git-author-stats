@@ -18,7 +18,7 @@ from urllib.parse import urlparse, urlunparse
 GIT: str = shutil.which("git") or "git"
 
 
-def check_output(command: Tuple[str, ...], echo: bool = False) -> str:
+def check_output(command: Tuple[str, ...], echo: bool = True) -> str:
     """
     This function wraps `subprocess.check_output`, but redirects stderr
     to a temporary file, then deletes that file (a platform-independent

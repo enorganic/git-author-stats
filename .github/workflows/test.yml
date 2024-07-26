@@ -42,7 +42,7 @@ jobs:
       run: make ci-install
     - name: configure git
       run: |
-        git config --global user.email "$(git --no-pager show -s --format=%ae)" && \
+        git config --global user.email "$(git --no-pager show -s --format=%ae)"
         git config --global user.name "$(git --no-pager show -s --format=%an)"
     - name: test
       env:
