@@ -13,7 +13,7 @@ from git_author_stats._github import iter_organization_repository_clone_urls
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 
-def _test_iter_organization_stats() -> None:
+def test_iter_organization_stats() -> None:
     """
     Test obtaining stats for a Github organization
     """
@@ -59,7 +59,7 @@ def test_iter_organization_repository_clone_urls() -> None:
     ), authenticated_urls
 
 
-def _test_iter_repo_stats() -> None:
+def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """

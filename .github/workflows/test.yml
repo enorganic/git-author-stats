@@ -47,4 +47,5 @@ jobs:
     - name: test
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      stdout: true
       run: make test

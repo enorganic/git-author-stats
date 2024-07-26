@@ -99,7 +99,7 @@ def test_iter_date_ranges() -> None:
         ) or period_before == before, f"{period_since} -> {period_before}"
 
 
-def _test_iter_repo_stats() -> None:
+def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """

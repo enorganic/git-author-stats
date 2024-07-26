@@ -18,7 +18,11 @@ from urllib.parse import urlparse, urlunparse
 GIT: str = shutil.which("git") or "git"
 
 
-def check_output(command: Tuple[str, ...], echo: bool = True) -> str:
+def check_output(
+    command: Tuple[str, ...],
+    cwd: Union[str, Path] = "",
+    echo: bool = False,
+) -> str:
     """
     This function wraps `subprocess.check_output`, but redirects stderr
     to a temporary file, then deletes that file (a platform-independent
@@ -37,6 +41,7 @@ def check_output(command: Tuple[str, ...], echo: bool = True) -> str:
         stderr=DEVNULL,
         check=True,
         text=True,
+        cwd=cwd or os.getcwd(),
     ).stdout
     if echo:
         print(output)
@@ -243,33 +248,27 @@ def normalize_author(author: str) -> str:
 
 
 def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
-    current_directory: str = ""
-    if path:
-        current_directory = os.getcwd()
-        path = os.path.abspath(path)
-        os.chdir(path)
-    try:
-        # Only look for authors if there is at least one commit
-        if int(check_output((GIT, "rev-list", "--all", "--count")).strip()):
-            # found: bool = False
-            line: str
-            output: str = check_output((GIT, "--no-pager", "shortlog", "-se"))
-            for line in filter(
-                None,
-                output.strip().split("\n"),
-            ):
-                name: str = (
-                    re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
-                )
-                assert name, line
-                # found = True
-                yield name
-            # if not found:
-            #     raise RuntimeError(f"No authors found:\n{output}")
-    finally:
-        if path:
-            # Return to the original working directory
-            os.chdir(current_directory)
+    # Only look for authors if there is at least one commit
+    if int(
+        check_output(
+            (GIT, "rev-list", "--all", "--count"),
+            cwd=path,
+        ).strip()
+    ):
+        line: str
+        output: str = check_output(
+            (GIT, "--no-pager", "shortlog", "-se"),
+            cwd=path,
+        )
+        for line in filter(
+            None,
+            output.strip().split("\n"),
+        ):
+            name: str = (
+                re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
+            )
+            assert name, line
+            yield name
 
 
 def map_authors_names_normalized(names: Iterable[str]) -> Dict[str, str]:
@@ -413,24 +412,15 @@ _STATS_PATTERN: re.Pattern = re.compile(
 
 
 def get_first_author_date(path: Union[str, Path] = "") -> date:
-    current_directory: str = ""
-    if path:
-        current_directory = os.getcwd()
-        path = os.path.abspath(path)
-        os.chdir(path)
-    try:
-        output: str = check_output(
-            (GIT, "log", "--reverse", "--date=iso8601-strict")
-        ).strip()
-        line: str
-        for line in output.split("\n"):
-            if line.startswith("Date:"):
-                return cast(date, get_iso_date(line[5:]))
-        raise ValueError(output)
-    finally:
-        if path:
-            # Return to the original working directory
-            os.chdir(current_directory)
+    output: str = check_output(
+        (GIT, "log", "--reverse", "--date=iso8601-strict"),
+        cwd=path,
+    ).strip()
+    line: str
+    for line in output.split("\n"):
+        if line.startswith("Date:"):
+            return cast(date, get_iso_date(line[5:]))
+    raise ValueError(output)
 
 
 def iter_local_repo_stats(
@@ -439,45 +429,35 @@ def iter_local_repo_stats(
     since: Optional[date] = None,
     before: Optional[date] = None,
 ) -> Iterable[Stats]:
-    current_directory: str
-    if path:
-        current_directory = os.getcwd()
-        path = os.path.abspath(path)
-        os.chdir(path)
-    try:
-        line: str
-        command: Tuple[str, ...] = (
-            GIT,
-            "--no-pager",
-            "log",
-            "--author",
-            author,
-            "--format=tformat:",
-            "--numstat",
+    line: str
+    command: Tuple[str, ...] = (
+        GIT,
+        "--no-pager",
+        "log",
+        "--author",
+        author,
+        "--format=tformat:",
+        "--numstat",
+    )
+    if since is not None:
+        command += ("--since", since.isoformat())
+    if before is not None:
+        command += ("--before", before.isoformat())
+    for line in filter(
+        None,
+        map(str.strip, check_output(command, cwd=path).strip().split("\n")),
+    ):
+        matched: Optional[re.Match] = _STATS_PATTERN.match(line)
+        if not matched:
+            raise ValueError(line)
+        yield Stats(
+            author=author,
+            since=since,
+            before=before,
+            insertions=int(matched.group(1).rstrip("-") or 0),
+            deletions=int(matched.group(2).rstrip("-") or 0),
+            file=matched.group(3),
         )
-        if since is not None:
-            command += ("--since", since.isoformat())
-        if before is not None:
-            command += ("--before", before.isoformat())
-        for line in filter(
-            None,
-            map(str.strip, check_output(command).strip().split("\n")),
-        ):
-            matched: Optional[re.Match] = _STATS_PATTERN.match(line)
-            if not matched:
-                raise ValueError(line)
-            yield Stats(
-                author=author,
-                since=since,
-                before=before,
-                insertions=int(matched.group(1).rstrip("-") or 0),
-                deletions=int(matched.group(2).rstrip("-") or 0),
-                file=matched.group(3),
-            )
-    finally:
-        if path:
-            # Return to the original working directory
-            os.chdir(current_directory)
 
 
 def increment_date_by_frequency(today: date, frequency: Frequency) -> date:
