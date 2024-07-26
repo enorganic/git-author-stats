@@ -251,9 +251,12 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
             for line in (
                 check_output(("git", "--no-pager", "shortlog", "-se"))
                 .strip()
-                .split()
+                .split("\n")
             ):
-                name: str = line.strip().partition(" ")[2]
+                name: str = (
+                    re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
+                )
+                assert name, line
                 yield name
     finally:
         if path:
@@ -617,7 +620,6 @@ def iter_stats(  # noqa: C901
     assert since and before and since < before
     # Get a mapping of author names to the best formatted variation of the
     # author's name
-    print(all_author_names)
     author_names_best: Dict[str, str] = map_authors_names(all_author_names)
     # Yield stats for each author, for each repository, for each time period
     for url, path in urls_paths:

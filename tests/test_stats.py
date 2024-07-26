@@ -140,7 +140,8 @@ def test_iter_repo_stats() -> None:
         )
     )
     assert stats
-    assert pandas.DataFrame(stats).columns.tolist() == [
+    data_frame: pandas.DataFrame = pandas.DataFrame(stats)
+    assert data_frame.columns.tolist() == [
         "url",
         "author",
         "since",
