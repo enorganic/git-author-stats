@@ -40,5 +40,5 @@ jobs:
       run: make ci-install
     - name: test
       env:
-        GITHUB_TOKEN: ${{ github.token }}
+        GH_TOKEN: ${{ github.token }}
       run: make test

@@ -18,9 +18,7 @@ from git_author_stats._stats import (
     parse_frequency_string,
 )
 
-env_path: Path = Path(__file__).parent.parent / ".env"
-if env_path.exists():
-    load_dotenv(env_path, override=True)
+load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 
 def test_parse_frequency_string() -> None:

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Tuple
 
 import pytest
 from dotenv import load_dotenv
@@ -11,11 +12,14 @@ load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 def test_iter_organization_repository_clone_urls() -> None:
     # Unauthenticated
-    assert "https://github.com/enorganic/dependence.git" in (
+    unauthenticated_urls: Tuple[str, ...] = tuple(
         iter_organization_repository_clone_urls("github.com/enorganic")
     )
-    # Authenticated
     assert "https://github.com/enorganic/dependence.git" in (
+        unauthenticated_urls
+    ), unauthenticated_urls
+    # Authenticated
+    authenticated_urls: Tuple[str, ...] = tuple(
         iter_organization_repository_clone_urls(
             "github.com/enorganic",
             password=os.environ.get(
@@ -23,6 +27,9 @@ def test_iter_organization_repository_clone_urls() -> None:
             ),
         )
     )
+    assert "https://github.com/enorganic/dependence.git" in (
+        authenticated_urls
+    ), authenticated_urls
 
 
 if __name__ == "__main__":
