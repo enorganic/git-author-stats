@@ -15,13 +15,6 @@ from urllib.parse import ParseResult
 from urllib.parse import quote as _quote
 from urllib.parse import urlparse, urlunparse
 
-try:
-    from functools import cache  # type: ignore
-except ImportError:
-    from functools import lru_cache
-
-    cache = lru_cache(maxsize=None)
-
 
 def check_output(command: Tuple[str, ...]) -> str:
     """
@@ -68,31 +61,27 @@ def update_url_user_password(
     assert url
     if not user or password:
         return url
-    if not user:
-        # If a password, but not user name is provided, assume the password is
-        # a token
-        user = "__token__"
     parse_result: ParseResult = urlparse(url)
     host: str
     user_password: str
     user_password, host = parse_result.netloc.rpartition("@")[::2]
-    if user:
-        # A `user` parameter was provided
+    if user and password:
+        user_password = f"{quote(user)}:{quote(password)}"
+    elif user:
         user_password = quote(user)
-    elif user_password:
-        # The URL already had a user name in it, so we will use that.
-        # Since we know that a user name was not provided, and that we'd have
-        # returned the original URL already if neither user name nor password
-        # had been provided, we know that we have a `password` to append,
-        # so we will drop any password which might have been parsed from the
-        # URL.
+    elif password:
         user_password = user_password.partition(":")[0]
-    else:
-        # If no user name was provided, and none was in the URL already, assume
-        # the password is a token
-        user_password = "__token__"
-    if password:
-        user_password = f"{user_password}:{quote(password)}"
+        if user_password:
+            # The URL already had a user name in it, so we will use that.
+            # Since we know that a user name was not provided, and that we'd
+            # have returned the original URL already if neither user name nor
+            # password had been provided, we know that we have a `password` to
+            # append, so we will drop any password which might have been
+            # parsed from the URL.
+            user_password = f"{user_password}:{quote(password)}"
+        else:
+            # The password is a token
+            user_password = quote(password)
     return urlunparse(
         (
             parse_result.scheme,

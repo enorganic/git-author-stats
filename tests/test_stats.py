@@ -1,6 +1,7 @@
 import os
 from datetime import date, timedelta
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Tuple
 
 import pandas  # type: ignore
 import pytest
@@ -17,7 +18,7 @@ from git_author_stats._stats import (
     parse_frequency_string,
 )
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 
 def test_parse_frequency_string() -> None:
@@ -102,6 +103,7 @@ def test_iter_organization_stats() -> None:
     """
     Test obtaining stats for a Github organization
     """
+    found: bool = False
     stats: Stats
     for stats in iter_stats(
         urls="https://github.com/enorganic",
@@ -109,21 +111,29 @@ def test_iter_organization_stats() -> None:
         since=date.today() - timedelta(days=30),
         user=os.environ.get("GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")),
     ):
-        print(stats)
+        found = True
+        break
+    assert found, 'No stats found for the "enorganic" organization.'
 
 
 def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """
-    assert pandas.DataFrame(
+    password: str = os.environ.get(
+        "GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")
+    )
+    assert password
+    stats: Tuple[Stats, ...] = tuple(
         iter_stats(
             urls="https://github.com/enorganic/git-author-stats.git",
             frequency=Frequency(2, FrequencyUnit.WEEK),
             since=date.today() - timedelta(days=365),
-            user="davebelais",
+            password=password,
         )
-    ).columns.tolist() == [
+    )
+    assert stats
+    assert pandas.DataFrame(stats).columns.tolist() == [
         "url",
         "author",
         "since",
@@ -131,7 +141,7 @@ def test_iter_repo_stats() -> None:
         "insertions",
         "deletions",
         "file",
-    ]
+    ], stats
 
 
 def test_get_first_author_date() -> None:

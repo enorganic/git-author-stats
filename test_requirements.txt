@@ -1,0 +1,8 @@
+black
+flake8
+isort
+mypy
+pandas
+pytest
+python-dotenv
+tox
