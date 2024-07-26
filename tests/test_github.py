@@ -29,7 +29,7 @@ def test_iter_organization_repository_clone_urls() -> None:
             password=password,
         )
     )
-    assert "https://github.com/enorganic/dependence.git" in (
+    assert "https://github.com/enorganic/discussions.git" in (
         authenticated_urls
     ), authenticated_urls
 

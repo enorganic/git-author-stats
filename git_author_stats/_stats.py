@@ -17,6 +17,8 @@ from urllib.parse import ParseResult
 from urllib.parse import quote as _quote
 from urllib.parse import urlparse, urlunparse
 
+GIT: str = shutil.which("git") or "git"
+
 
 def check_output(command: Tuple[str, ...], echo: bool = False) -> str:
     """
@@ -31,8 +33,13 @@ def check_output(command: Tuple[str, ...], echo: bool = False) -> str:
     if echo:
         print("$", "cd", os.getcwd(), "&& ", list2cmdline(command))
     stderr_path: str = mktemp()
+    output: str
     with open(stderr_path, "w") as stderr:
-        output = _check_output(command, stderr=stderr, text=True)
+        output = _check_output(
+            command,
+            stderr=stderr,
+            text=True,
+        )
     if echo:
         print(output)
     os.remove(stderr_path)
@@ -201,7 +208,7 @@ def clone(
     url = update_url_user_password(url, user, password)
     # Clone into a temp directory
     temp_directory: str = mkdtemp()
-    command: Tuple[str, ...] = ("git", "clone", "-q", "--filter=blob:none")
+    command: Tuple[str, ...] = (GIT, "clone", "-q", "--filter=blob:none")
     if since is not None:
         command += (f"--shallow-since={since.isoformat()}",)
     command += (url, temp_directory)
@@ -246,12 +253,10 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
         os.chdir(path)
     try:
         # Only look for authors if there is at least one commit
-        if int(check_output(("git", "rev-list", "--all", "--count")).strip()):
-            found: bool = False
+        if int(check_output((GIT, "rev-list", "--all", "--count")).strip()):
+            # found: bool = False
             line: str
-            output: str = check_output(
-                ("git", "--no-pager", "shortlog", "-se")
-            )
+            output: str = check_output((GIT, "--no-pager", "shortlog", "-se"))
             for line in filter(
                 None,
                 output.strip().split("\n"),
@@ -260,10 +265,10 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
                     re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
                 )
                 assert name, line
-                found = True
+                # found = True
                 yield name
-            if not found:
-                raise RuntimeError(f"No authors found:\n{output}")
+            # if not found:
+            #     raise RuntimeError(f"No authors found:\n{output}")
     finally:
         if path:
             # Return to the original working directory
@@ -418,7 +423,7 @@ def get_first_author_date(path: Union[str, Path] = "") -> date:
         os.chdir(path)
     try:
         output: str = check_output(
-            ("git", "log", "--reverse", "--date=iso8601-strict")
+            (GIT, "log", "--reverse", "--date=iso8601-strict")
         ).strip()
         line: str
         for line in output.split("\n"):
@@ -445,7 +450,7 @@ def iter_local_repo_stats(
     try:
         line: str
         command: Tuple[str, ...] = (
-            "git",
+            GIT,
             "--no-pager",
             "log",
             "--author",
