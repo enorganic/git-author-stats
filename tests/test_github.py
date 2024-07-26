@@ -1,13 +1,38 @@
 import os
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Tuple
 
+import pandas
 import pytest
 from dotenv import load_dotenv
 
+from git_author_stats import Frequency, FrequencyUnit, Stats, iter_stats
 from git_author_stats._github import iter_organization_repository_clone_urls
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
+
+
+def test_iter_organization_stats() -> None:
+    """
+    Test obtaining stats for a Github organization
+    """
+    password: str = (
+        os.environ.get("GH_TOKEN", "").strip()
+        or os.environ.get("GITHUB_TOKEN", "").strip()
+    )
+    assert password
+    found: bool = False
+    stats: Stats
+    for stats in iter_stats(
+        urls="https://github.com/enorganic",
+        frequency=Frequency(2, FrequencyUnit.WEEK),
+        since=date.today() - timedelta(days=30),
+        password=password,
+    ):
+        found = True
+        break
+    assert found, 'No stats found for the "enorganic" organization.'
 
 
 def test_iter_organization_repository_clone_urls() -> None:
@@ -32,6 +57,36 @@ def test_iter_organization_repository_clone_urls() -> None:
     assert "https://github.com/enorganic/discussions.git" in (
         authenticated_urls
     ), authenticated_urls
+
+
+def test_iter_repo_stats() -> None:
+    """
+    Test creating a pandas data frame from the stats of a single repository.
+    """
+    password: str = (
+        os.environ.get("GH_TOKEN", "").strip()
+        or os.environ.get("GITHUB_TOKEN", "").strip()
+    )
+    assert password
+    stats: Tuple[Stats, ...] = tuple(
+        iter_stats(
+            urls="https://github.com/enorganic/dependence.git",
+            frequency=Frequency(2, FrequencyUnit.WEEK),
+            since=date.today() - timedelta(days=365),
+            password=password,
+        )
+    )
+    assert stats
+    data_frame: pandas.DataFrame = pandas.DataFrame(stats)
+    assert data_frame.columns.tolist() == [
+        "url",
+        "author",
+        "since",
+        "before",
+        "insertions",
+        "deletions",
+        "file",
+    ], stats
 
 
 if __name__ == "__main__":

@@ -8,10 +8,8 @@ from datetime import date, datetime, timedelta
 from enum import Enum
 from operator import itemgetter
 from pathlib import Path
-from subprocess import CalledProcessError
-from subprocess import check_output as _check_output
-from subprocess import list2cmdline
-from tempfile import mkdtemp, mktemp
+from subprocess import DEVNULL, PIPE, CalledProcessError, list2cmdline, run
+from tempfile import mkdtemp
 from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Union, cast
 from urllib.parse import ParseResult
 from urllib.parse import quote as _quote
@@ -32,17 +30,16 @@ def check_output(command: Tuple[str, ...], echo: bool = False) -> str:
     """
     if echo:
         print("$", "cd", os.getcwd(), "&& ", list2cmdline(command))
-    stderr_path: str = mktemp()
     output: str
-    with open(stderr_path, "w") as stderr:
-        output = _check_output(
-            command,
-            stderr=stderr,
-            text=True,
-        )
+    output = run(
+        command,
+        stdout=PIPE,
+        stderr=DEVNULL,
+        check=True,
+        text=True,
+    ).stdout
     if echo:
         print(output)
-    os.remove(stderr_path)
     return output
 
 

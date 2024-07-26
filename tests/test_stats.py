@@ -1,11 +1,11 @@
-import os
+import sys
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional, Tuple
+from subprocess import check_output
+from typing import List, Optional, Tuple
 
 import pandas  # type: ignore
 import pytest
-from dotenv import load_dotenv
 
 from git_author_stats._stats import (
     Frequency,
@@ -18,7 +18,6 @@ from git_author_stats._stats import (
     parse_frequency_string,
 )
 
-load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 ROOT_PATH: Path = Path(__file__).parent.parent
 
 
@@ -100,43 +99,15 @@ def test_iter_date_ranges() -> None:
         ) or period_before == before, f"{period_since} -> {period_before}"
 
 
-def test_iter_organization_stats() -> None:
-    """
-    Test obtaining stats for a Github organization
-    """
-    password: str = (
-        os.environ.get("GH_TOKEN", "").strip()
-        or os.environ.get("GITHUB_TOKEN", "").strip()
-    )
-    assert password
-    found: bool = False
-    stats: Stats
-    for stats in iter_stats(
-        urls="https://github.com/enorganic",
-        frequency=Frequency(2, FrequencyUnit.WEEK),
-        since=date.today() - timedelta(days=30),
-        password=password,
-    ):
-        found = True
-        break
-    assert found, 'No stats found for the "enorganic" organization.'
-
-
 def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """
-    password: str = (
-        os.environ.get("GH_TOKEN", "").strip()
-        or os.environ.get("GITHUB_TOKEN", "").strip()
-    )
-    assert password
     stats: Tuple[Stats, ...] = tuple(
         iter_stats(
-            urls="https://github.com/enorganic/git-author-stats.git",
+            urls="https://github.com/enorganic/dependence.git",
             frequency=Frequency(2, FrequencyUnit.WEEK),
             since=date.today() - timedelta(days=365),
-            password=password,
         )
     )
     assert stats
@@ -157,6 +128,24 @@ def test_get_first_author_date() -> None:
     Test getting the first author date using this repository.
     """
     assert get_first_author_date(ROOT_PATH) >= date(2024, 4, 30)
+
+
+def test_cli() -> None:
+    lines: List[str] = check_output(
+        [
+            sys.executable,
+            "-m",
+            "git_author_stats",
+            "https://github.com/enorganic/dependence.git",
+            "-f",
+            "1w",
+            "--since",
+            (date.today() - timedelta(days=365)).isoformat(),
+        ],
+        text=True,
+        universal_newlines=True,
+    ).split("\n")
+    assert len(lines) > 1
 
 
 if __name__ == "__main__":
