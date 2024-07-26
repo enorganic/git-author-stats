@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import Enum
 from operator import itemgetter
-from subprocess import CalledProcessError, check_call, check_output
+from subprocess import CalledProcessError
+from subprocess import check_output as _check_output
 from tempfile import mkdtemp, mktemp
 from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Union, cast
 from urllib.parse import ParseResult
@@ -20,6 +21,31 @@ except ImportError:
     from functools import lru_cache
 
     cache = lru_cache(maxsize=None)
+
+
+def check_output(command: Tuple[str, ...]) -> str:
+    """
+    This function wraps `subprocess.check_output`, but redirects stderr
+    to a temporary file, then deletes that file (a platform-independent
+    means of redirecting output to DEVNULL).
+
+    Parameters:
+
+    - command (Tuple[str, ...]): The command to run
+    """
+    stderr_path: str = mktemp()
+    with open(stderr_path, "w") as stderr:
+        output = _check_output(command, stderr=stderr, text=True)
+    os.remove(stderr_path)
+    return output
+
+
+def get_iso_date(datetime_string: str) -> Optional[date]:
+    return (
+        datetime.fromisoformat(datetime_string.strip().rstrip("Z")).date()
+        if datetime_string
+        else None
+    )
 
 
 def update_url_user_password(
@@ -182,10 +208,7 @@ def clone(
         command += (f"--shallow-since={since.isoformat()}",)
     command += (url, temp_directory)
     try:
-        stderr_path: str = mktemp()
-        with open(stderr_path, "w") as stderr:
-            check_call(command, stderr=stderr)
-        os.remove(stderr_path)
+        check_output(command)
     except CalledProcessError as error:
         if since is not None:
             # Test to see if the error was due to the date
@@ -225,9 +248,9 @@ def iter_local_repo_author_names(path: str) -> Iterable[str]:
     try:
         line: str
         for line in (
-            check_output(("git", "--no-pager", "shortlog", "-se"), text=True)
+            check_output(("git", "--no-pager", "shortlog", "-se"))
             .strip()
-            .split("\n")
+            .splitlines()
         ):
             name: str = line.strip().partition(" ")[2]
             yield name
@@ -384,14 +407,12 @@ def get_first_author_date(path: str = "") -> date:
         os.chdir(path)
     try:
         output: str = check_output(
-            ("git", "log", "--reverse", "--date=iso8601-strict"), text=True
+            ("git", "log", "--reverse", "--date=iso8601-strict")
         ).strip()
         line: str
         for line in output.split("\n"):
             if line.startswith("Date:"):
-                return datetime.fromisoformat(
-                    line[5:].strip().rstrip("Z")
-                ).date()
+                return cast(date, get_iso_date(line[5:]))
         raise ValueError(output)
     finally:
         if path:
@@ -427,9 +448,7 @@ def iter_local_repo_stats(
             command += ("--before", before.isoformat())
         for line in filter(
             None,
-            map(
-                str.strip, check_output(command, text=True).strip().split("\n")
-            ),
+            map(str.strip, check_output(command).strip().split("\n")),
         ):
             matched: Optional[re.Match] = _STATS_PATTERN.match(line)
             if not matched:
