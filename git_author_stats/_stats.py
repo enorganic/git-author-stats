@@ -252,7 +252,7 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
                 None,
                 check_output(("git", "--no-pager", "shortlog", "-se"))
                 .strip()
-                .split("\n")
+                .split("\n"),
             ):
                 name: str = (
                     re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
