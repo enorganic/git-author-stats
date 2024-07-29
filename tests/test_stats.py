@@ -1,7 +1,6 @@
 import sys
 from datetime import date, timedelta
 from pathlib import Path
-from subprocess import check_output
 from typing import List, Optional, Tuple
 
 import pandas  # type: ignore
@@ -11,6 +10,7 @@ from git_author_stats._stats import (
     Frequency,
     FrequencyUnit,
     Stats,
+    check_output,
     get_first_author_date,
     increment_date_by_frequency,
     iter_date_ranges,
@@ -132,7 +132,7 @@ def test_get_first_author_date() -> None:
 
 def test_cli() -> None:
     lines: List[str] = check_output(
-        [
+        (
             sys.executable,
             "-m",
             "git_author_stats",
@@ -141,8 +141,8 @@ def test_cli() -> None:
             "1w",
             "--since",
             (date.today() - timedelta(days=365)).isoformat(),
-        ],
-        text=True,
+        ),
+        echo=True,
     ).split("\n")
     assert len(lines) > 1
 

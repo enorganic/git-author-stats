@@ -9,7 +9,7 @@ from enum import Enum
 from operator import itemgetter
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, CalledProcessError, list2cmdline, run
-from tempfile import mkdtemp
+from tempfile import mkdtemp as _mkdtemp
 from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Union, cast
 from urllib.parse import ParseResult
 from urllib.parse import quote as _quote
@@ -18,8 +18,20 @@ from urllib.parse import urlparse, urlunparse
 GIT: str = shutil.which("git") or "git"
 
 
+def mkdtemp(
+    suffix: Optional[str] = None,
+    prefix: Optional[str] = None,
+    dir: Optional[str] = None,
+) -> str:
+    directory: str = _mkdtemp(suffix, prefix, dir)
+    os.chmod(directory, 0o777)
+    # Create the .git directory with open permissions
+    # os.mkdir(os.path.join(directory, ".git"))
+    return directory
+
+
 def check_output(
-    command: Tuple[str, ...],
+    args: Tuple[str, ...],
     cwd: Union[str, Path] = "",
     echo: bool = False,
 ) -> str:
@@ -32,16 +44,16 @@ def check_output(
 
     - command (Tuple[str, ...]): The command to run
     """
+    cwd = cwd or os.getcwd()
     if echo:
-        print("$", "cd", os.getcwd(), "&& ", list2cmdline(command))
-    output: str
-    output = run(
-        command,
+        print("$", "cd", cwd, "&&", list2cmdline(args))
+    output: str = run(
+        args,
         stdout=PIPE,
         stderr=DEVNULL,
         check=True,
         text=True,
-        cwd=cwd or os.getcwd(),
+        cwd=cwd,
     ).stdout
     if echo:
         print(output)
@@ -210,7 +222,13 @@ def clone(
     url = update_url_user_password(url, user, password)
     # Clone into a temp directory
     temp_directory: str = mkdtemp()
-    command: Tuple[str, ...] = (GIT, "clone", "-q", "--filter=blob:none")
+    command: Tuple[str, ...] = (
+        GIT,
+        "clone",
+        "-q",
+        "--filter=blob:none",
+        "--bare",
+    )
     if since is not None:
         command += (f"--shallow-since={since.isoformat()}",)
     command += (url, temp_directory)
@@ -234,6 +252,7 @@ def clone(
             return ""
         shutil.rmtree(temp_directory)
         raise error
+    os.chmod(temp_directory, 0o777)
     return temp_directory
 
 
