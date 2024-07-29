@@ -38,8 +38,9 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python }}
+    - run: sudo apt install expect
     - name: install
-      run: make ci-install
+      run: unbuffer make ci-install
     - name: configure git
       run: |
         git config --global user.email "$(git --no-pager show -s --format=%ae)"
