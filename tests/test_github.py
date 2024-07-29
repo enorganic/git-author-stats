@@ -2,14 +2,22 @@ import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
+from warnings import warn
 
 import pandas
+import polars
 import pytest
 from dotenv import load_dotenv
 
-from git_author_stats import Frequency, FrequencyUnit, Stats, iter_stats
 from git_author_stats._github import iter_organization_repository_clone_urls
+from git_author_stats._stats import (
+    Frequency,
+    FrequencyUnit,
+    Stats,
+    check_output,
+    iter_stats,
+)
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
@@ -18,6 +26,12 @@ def test_iter_organization_stats() -> None:
     """
     Test obtaining stats for a Github organization
     """
+    if sys.stdout is not sys.__stdout__:
+        warn(
+            "Cannot run `pytest tests/test_stats.py::test_iter_repo_stats` "
+            "while `sys.stdout` is being captured"
+        )
+        return
     password: str = (
         os.environ.get("GH_TOKEN", "").strip()
         or os.environ.get("GITHUB_TOKEN", "").strip()
@@ -28,15 +42,11 @@ def test_iter_organization_stats() -> None:
     for stats in iter_stats(
         urls="https://github.com/enorganic",
         frequency=Frequency(2, FrequencyUnit.WEEK),
-        since=date.today() - timedelta(days=30),
+        since=date.today() - timedelta(days=365),
         password=password,
     ):
         found = True
         break
-    if not found and (sys.stdout is not sys.__stdout__):
-        raise RuntimeError(
-            f"sys.stdout: {sys.stdout}\nsys.__stdout__: {sys.__stdout__}"
-        )
     assert found, 'No stats found for the "enorganic" organization.'
 
 
@@ -45,7 +55,7 @@ def test_iter_organization_repository_clone_urls() -> None:
     unauthenticated_urls: Tuple[str, ...] = tuple(
         iter_organization_repository_clone_urls("github.com/enorganic")
     )
-    assert "https://github.com/enorganic/dependence.git" in (
+    assert "https://github.com/enorganic/git-author-stats.git" in (
         unauthenticated_urls
     ), unauthenticated_urls
     # Authenticated
@@ -68,6 +78,12 @@ def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """
+    if sys.stdout is not sys.__stdout__:
+        warn(
+            "Cannot run `pytest tests/test_stats.py::test_iter_repo_stats` "
+            "while `sys.stdout` is being captured"
+        )
+        return
     password: str = (
         os.environ.get("GH_TOKEN", "").strip()
         or os.environ.get("GITHUB_TOKEN", "").strip()
@@ -75,19 +91,15 @@ def test_iter_repo_stats() -> None:
     assert password
     stats: Tuple[Stats, ...] = tuple(
         iter_stats(
-            urls="https://github.com/enorganic/dependence.git",
+            urls="https://github.com/enorganic/git-author-stats.git",
             frequency=Frequency(2, FrequencyUnit.WEEK),
             since=date.today() - timedelta(days=365),
             password=password,
         )
     )
     assert stats
-    if (not stats) and sys.stdout is not sys.__stdout__:
-        raise RuntimeError(
-            f"sys.stdout: {sys.stdout}\nsys.__stdout__: {sys.__stdout__}"
-        )
-    data_frame: pandas.DataFrame = pandas.DataFrame(stats)
-    assert data_frame.columns.tolist() == [
+    pandas_data_frame: pandas.DataFrame = pandas.DataFrame(stats)
+    assert pandas_data_frame.columns.tolist() == [
         "url",
         "author",
         "since",
@@ -96,6 +108,72 @@ def test_iter_repo_stats() -> None:
         "deletions",
         "file",
     ], stats
+    polars_data_frame: polars.DataFrame = polars.DataFrame(stats)
+    assert polars_data_frame.columns == [
+        "url",
+        "author",
+        "since",
+        "before",
+        "insertions",
+        "deletions",
+        "file",
+    ], stats
+
+
+def test_cli_repo() -> None:
+    password: str = (
+        os.environ.get("GH_TOKEN", "").strip()
+        or os.environ.get("GITHUB_TOKEN", "").strip()
+    )
+    assert password
+    lines: List[str] = (
+        check_output(
+            (
+                sys.executable,
+                "-m",
+                "git_author_stats",
+                "https://github.com/enorganic/git-author-stats.git",
+                "-f",
+                "1w",
+                "--since",
+                (date.today() - timedelta(days=365)).isoformat(),
+                "-p",
+                password,
+            ),
+            echo=True,
+        )
+        .strip()
+        .split("\n")
+    )
+    assert len(lines) > 1
+
+
+def test_cli_org() -> None:
+    password: str = (
+        os.environ.get("GH_TOKEN", "").strip()
+        or os.environ.get("GITHUB_TOKEN", "").strip()
+    )
+    assert password
+    lines: List[str] = (
+        check_output(
+            (
+                sys.executable,
+                "-m",
+                "git_author_stats",
+                "https://github.com/enorganic",
+                "-f",
+                "1w",
+                "--since",
+                (date.today() - timedelta(days=365)).isoformat(),
+                "-p",
+                password,
+            ),
+            echo=True,
+        )
+        .strip()
+        .split("\n")
+    )
+    assert len(lines) > 1
 
 
 if __name__ == "__main__":

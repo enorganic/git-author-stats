@@ -28,4 +28,4 @@ multi_line_output = 3
 extend_skip = []
 
 [tool.pytest.ini_options]
-addopts = "--capture=sys"
+addopts = "--capture=no"

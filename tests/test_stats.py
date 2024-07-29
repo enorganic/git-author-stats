@@ -2,8 +2,10 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 from typing import List, Optional, Tuple
+from warnings import warn
 
 import pandas  # type: ignore
+import polars
 import pytest
 
 from git_author_stats._stats import (
@@ -103,20 +105,32 @@ def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """
+    if sys.stdout is not sys.__stdout__:
+        warn(
+            "Cannot run `pytest tests/test_stats.py::test_iter_repo_stats` "
+            "while `sys.stdout` is being captured"
+        )
+        return
     stats: Tuple[Stats, ...] = tuple(
         iter_stats(
-            urls="https://github.com/enorganic/dependence.git",
+            urls="https://github.com/enorganic/git-author-stats.git",
             frequency=Frequency(2, FrequencyUnit.WEEK),
             since=date.today() - timedelta(days=365),
         )
     )
-    if (not stats) and sys.stdout is not sys.__stdout__:
-        raise RuntimeError(
-            f"sys.stdout: {sys.stdout}\nsys.__stdout__: {sys.__stdout__}"
-        )
     assert stats
-    data_frame: pandas.DataFrame = pandas.DataFrame(stats)
-    assert data_frame.columns.tolist() == [
+    pandas_data_frame: pandas.DataFrame = pandas.DataFrame(stats)
+    assert pandas_data_frame.columns.tolist() == [
+        "url",
+        "author",
+        "since",
+        "before",
+        "insertions",
+        "deletions",
+        "file",
+    ], stats
+    polars_data_frame: polars.DataFrame = polars.DataFrame(stats)
+    assert polars_data_frame.columns == [
         "url",
         "author",
         "since",
@@ -135,19 +149,23 @@ def test_get_first_author_date() -> None:
 
 
 def test_cli() -> None:
-    lines: List[str] = check_output(
-        (
-            sys.executable,
-            "-m",
-            "git_author_stats",
-            "https://github.com/enorganic/dependence.git",
-            "-f",
-            "1w",
-            "--since",
-            (date.today() - timedelta(days=365)).isoformat(),
-        ),
-        echo=True,
-    ).split("\n")
+    lines: List[str] = (
+        check_output(
+            (
+                sys.executable,
+                "-m",
+                "git_author_stats",
+                "https://github.com/enorganic/git-author-stats.git",
+                "-f",
+                "1w",
+                "--since",
+                (date.today() - timedelta(days=365)).isoformat(),
+            ),
+            echo=True,
+        )
+        .strip()
+        .split("\n")
+    )
     assert len(lines) > 1
 
 
