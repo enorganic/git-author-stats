@@ -1,3 +1,4 @@
+import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -105,10 +106,10 @@ def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """
-    if sys.stdout is not sys.__stdout__:
+    if os.environ.get("CI", None):
         warn(
             "Cannot run `pytest tests/test_stats.py::test_iter_repo_stats` "
-            "while `sys.stdout` is being captured"
+            "in Github Actions"
         )
         return
     stats: Tuple[Stats, ...] = tuple(
