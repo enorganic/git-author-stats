@@ -1,7 +1,6 @@
 import os
 import re
 import shutil
-import sys
 import unicodedata
 from copy import copy
 from dataclasses import dataclass
@@ -10,25 +9,13 @@ from enum import Enum
 from operator import itemgetter
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, CalledProcessError, list2cmdline, run
-from tempfile import mkdtemp as _mkdtemp
+from tempfile import mkdtemp
 from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Union, cast
 from urllib.parse import ParseResult
 from urllib.parse import quote as _quote
 from urllib.parse import urlparse, urlunparse
 
 GIT: str = shutil.which("git") or "git"
-
-
-def mkdtemp(
-    suffix: Optional[str] = None,
-    prefix: Optional[str] = None,
-    dir: Optional[str] = None,
-) -> str:
-    directory: str = _mkdtemp(suffix, prefix, dir)
-    os.chmod(directory, 0o777)
-    # Create the .git directory with open permissions
-    # os.mkdir(os.path.join(directory, ".git"))
-    return directory
 
 
 def check_output(
@@ -253,7 +240,6 @@ def clone(
             return ""
         shutil.rmtree(temp_directory)
         raise error
-    os.chmod(temp_directory, 0o777)
     return temp_directory
 
 
