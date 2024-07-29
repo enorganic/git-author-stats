@@ -77,8 +77,8 @@ requirements:
 test:
 	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
 	if [[ "$$(python -V)" = "Python $(PYTHON_VERSION)."* ]] ;\
-	then tox -r -p -o ;\
-	else tox -r -e pytest,pytest-github ;\
+	then python3 -m tox -r -p -o ;\
+	else python3 -m tox -r -e pytest,pytest-github ;\
 	fi
 
 # Apply formatting and run code quality checks
