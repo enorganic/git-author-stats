@@ -26,10 +26,10 @@ def test_iter_organization_stats() -> None:
     """
     Test obtaining stats for a Github organization
     """
-    if sys.stdout is not sys.__stdout__:
+    if os.environ.get("CI", None):
         warn(
             "Cannot run `pytest tests/test_stats.py::test_iter_repo_stats` "
-            "while `sys.stdout` is being captured"
+            "in Github Actions"
         )
         return
     password: str = (
@@ -145,7 +145,7 @@ def test_cli_repo() -> None:
         .strip()
         .split("\n")
     )
-    assert len(lines) > 1
+    assert len(lines) > 2
 
 
 def test_cli_org() -> None:
@@ -173,7 +173,7 @@ def test_cli_org() -> None:
         .strip()
         .split("\n")
     )
-    assert len(lines) > 1
+    assert len(lines) > 2
 
 
 if __name__ == "__main__":

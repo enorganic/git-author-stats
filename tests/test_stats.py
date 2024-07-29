@@ -167,7 +167,7 @@ def test_cli() -> None:
         .strip()
         .split("\n")
     )
-    assert len(lines) > 1
+    assert len(lines) > 2
 
 
 if __name__ == "__main__":
