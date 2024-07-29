@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Tuple
@@ -77,6 +78,10 @@ def test_iter_repo_stats() -> None:
         )
     )
     assert stats
+    if (not stats) and sys.stdout is not sys.__stdout__:
+        raise RuntimeError(
+            f"sys.stdout: {sys.stdout}\nsys.__stdout__: {sys.__stdout__}"
+        )
     data_frame: pandas.DataFrame = pandas.DataFrame(stats)
     assert data_frame.columns.tolist() == [
         "url",
