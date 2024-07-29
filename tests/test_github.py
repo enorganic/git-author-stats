@@ -33,6 +33,10 @@ def test_iter_organization_stats() -> None:
     ):
         found = True
         break
+    if not found and (sys.stdout is not sys.__stdout__):
+        raise RuntimeError(
+            f"sys.stdout: {sys.stdout}\nsys.__stdout__: {sys.__stdout__}"
+        )
     assert found, 'No stats found for the "enorganic" organization.'
 
 
