@@ -110,6 +110,10 @@ def test_iter_repo_stats() -> None:
             since=date.today() - timedelta(days=365),
         )
     )
+    if (not stats) and sys.stdout is not sys.__stdout__:
+        raise RuntimeError(
+            f"sys.stdout: {sys.stdout}\nsys.__stdout__: {sys.__stdout__}"
+        )
     assert stats
     data_frame: pandas.DataFrame = pandas.DataFrame(stats)
     assert data_frame.columns.tolist() == [
