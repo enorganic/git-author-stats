@@ -1,5 +1,6 @@
 import argparse
 import csv
+import re
 import sys
 import warnings
 from dataclasses import Field, fields
@@ -7,6 +8,16 @@ from datetime import date
 from typing import Any, List, Tuple, Union
 
 from ._stats import Stats, get_iso_date, iter_stats
+
+
+class _HelpFormatter(argparse.HelpFormatter):
+
+    def format_help(self) -> str:
+        return re.sub(
+            r"(\bREGULAR_EXPRESSION_ALIAS\b)([\s\n]+)(\1)",
+            r"REGULAR_EXPRESSION\2ALIAS",
+            super().format_help(),
+        )
 
 
 def _get_string_value(value: Union[str, date, float, int, None]) -> str:
@@ -64,6 +75,7 @@ def main() -> None:
             "Print author stats for a Github organization or Git "
             "repository in the format of a Markdown table or CSV/TSV."
         ),
+        formatter_class=_HelpFormatter,
     )
     parser.add_argument(
         "-b",
@@ -141,6 +153,23 @@ def main() -> None:
         action="store_true",
         help="Output a markdown table instead of CSV/TSV",
     )
+    parser.add_argument(
+        "-rea",
+        "--regular-expression-alias",
+        default=[],
+        action="append",
+        nargs=2,
+        help=(
+            "A regular expression and alias to use when an author "
+            "name matches the provided regular expression"
+        ),
+    )
+    parser.add_argument(
+        "-e",
+        "--email",
+        action="store_true",
+        help="Include author email addresses in the output",
+    )
     parser.add_argument("url", type=str, nargs="+", help="Repository URL(s)")
     namespace: argparse.Namespace = parser.parse_args()
     with warnings.catch_warnings():
@@ -177,6 +206,10 @@ def main() -> None:
             before=get_iso_date(namespace.before),
             until=get_iso_date(namespace.until),
             frequency=namespace.frequency,
+            regular_expression_aliases=tuple(
+                namespace.regular_expression_alias
+            ),
+            email=namespace.email,
         ):
             row: Tuple[str, ...] = tuple(
                 map(
