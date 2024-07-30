@@ -30,6 +30,15 @@ You can install `git-author-stats` with pip:
 pip3 install git-author-stats
 ```
 
+Please note that you will need to
+specify the extra "github" in your `pip install` command if you want to extract
+stats from all repositories owned by a _Github organization_ without needing
+to provide each repository URL explicitly:
+
+```shell
+pip3 install 'git-author-stats[github]'
+```
+
 ## Usage
 
 ### Command Line Interface
