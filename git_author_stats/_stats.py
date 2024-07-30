@@ -35,9 +35,8 @@ def check_output(
     echo: bool = False,
 ) -> str:
     """
-    This function wraps `subprocess.check_output`, but redirects stderr
-    to a temporary file, then deletes that file (a platform-independent
-    means of redirecting output to DEVNULL).
+    This function mimics `subprocess.check_output`, but redirects stderr
+    to DEVNULL, and ignores unicode decoding errors.
 
     Parameters:
 
@@ -48,17 +47,16 @@ def check_output(
             print("$", "cd", cwd, "&&", list2cmdline(args))
         else:
             print("$", list2cmdline(args))
-    output: str = run(
+    output: bytes = run(
         args,
         stdout=PIPE,
         stderr=DEVNULL,
         check=True,
-        text=True,
         cwd=cwd or None,
     ).stdout
     if echo:
         print(output)
-    return output
+    return output.decode("utf-8", errors="ignore")
 
 
 def get_iso_date(datetime_string: str) -> Optional[date]:
