@@ -3,6 +3,7 @@ from typing import Iterable, Optional
 from urllib.parse import ParseResult, urlparse
 
 from github import Github
+from github.Auth import Auth, Login, Token
 from github.Organization import Organization
 from github.Repository import Repository
 
@@ -24,7 +25,12 @@ def iter_organization_repository_clone_urls(
       configuration will be used.
     - password (str) = "": A password/token with which to authenticate.
     """
-    github: Github = Github(user or None, password or None)
+    auth: Optional[Auth] = (
+        Login(user, password)
+        if user and password
+        else Token(password) if password else None
+    )
+    github: Github = Github(auth=auth)
     if "://" not in url:
         url = f"https://{url}"
     parse_result: ParseResult = urlparse(url)

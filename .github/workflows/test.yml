@@ -17,6 +17,8 @@ on:
     - .github/**
 jobs:
   test:
+    permissions:
+      contents: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -39,4 +41,7 @@ jobs:
     - name: install
       run: make ci-install
     - name: test
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        PYTHONUNBUFFERED: 1
       run: make test

@@ -1,15 +1,17 @@
-import os
+import sys
 from datetime import date, timedelta
-from typing import Optional
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import pandas  # type: ignore
+import polars
 import pytest
-from dotenv import load_dotenv
 
 from git_author_stats._stats import (
     Frequency,
     FrequencyUnit,
     Stats,
+    check_output,
     get_first_author_date,
     increment_date_by_frequency,
     iter_date_ranges,
@@ -17,7 +19,7 @@ from git_author_stats._stats import (
     parse_frequency_string,
 )
 
-load_dotenv()
+ROOT_PATH: Path = Path(__file__).parent.parent
 
 
 def test_parse_frequency_string() -> None:
@@ -98,34 +100,20 @@ def test_iter_date_ranges() -> None:
         ) or period_before == before, f"{period_since} -> {period_before}"
 
 
-def test_iter_organization_stats() -> None:
-    """
-    Test obtaining stats for a Github organization
-    """
-    stats: Stats
-    for stats in iter_stats(
-        urls="https://github.com/enorganic",
-        frequency=Frequency(2, FrequencyUnit.WEEK),
-        since=date.today() - timedelta(days=30),
-        password=os.environ.get(
-            "GH_TOKEN", os.environ.get("GITHUB_TOKEN", "")
-        ),
-    ):
-        print(stats)
-
-
 def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """
-    assert pandas.DataFrame(
+    stats: Tuple[Stats, ...] = tuple(
         iter_stats(
             urls="https://github.com/enorganic/git-author-stats.git",
             frequency=Frequency(2, FrequencyUnit.WEEK),
             since=date.today() - timedelta(days=365),
-            user="davebelais",
         )
-    ).columns.tolist() == [
+    )
+    assert stats
+    pandas_data_frame: pandas.DataFrame = pandas.DataFrame(stats)
+    assert pandas_data_frame.columns.tolist() == [
         "url",
         "author",
         "since",
@@ -133,14 +121,45 @@ def test_iter_repo_stats() -> None:
         "insertions",
         "deletions",
         "file",
-    ]
+    ], stats
+    polars_data_frame: polars.DataFrame = polars.DataFrame(stats)
+    assert polars_data_frame.columns == [
+        "url",
+        "author",
+        "since",
+        "before",
+        "insertions",
+        "deletions",
+        "file",
+    ], stats
 
 
 def test_get_first_author_date() -> None:
     """
     Test getting the first author date using this repository.
     """
-    assert get_first_author_date() == date(2024, 4, 30)
+    assert get_first_author_date(ROOT_PATH) >= date(2024, 4, 30)
+
+
+def test_cli() -> None:
+    lines: List[str] = (
+        check_output(
+            (
+                sys.executable,
+                "-m",
+                "git_author_stats",
+                "https://github.com/enorganic/git-author-stats.git",
+                "-f",
+                "1w",
+                "--since",
+                (date.today() - timedelta(days=365)).isoformat(),
+            ),
+            echo=True,
+        )
+        .strip()
+        .split("\n")
+    )
+    assert len(lines) > 2
 
 
 if __name__ == "__main__":

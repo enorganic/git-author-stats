@@ -7,19 +7,55 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import Enum
 from operator import itemgetter
-from subprocess import CalledProcessError, check_call, check_output
-from tempfile import mkdtemp, mktemp
+from pathlib import Path
+from subprocess import DEVNULL, PIPE, CalledProcessError, list2cmdline, run
+from tempfile import mkdtemp
 from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Union, cast
 from urllib.parse import ParseResult
 from urllib.parse import quote as _quote
 from urllib.parse import urlparse, urlunparse
 
-try:
-    from functools import cache  # type: ignore
-except ImportError:
-    from functools import lru_cache
+GIT: str = shutil.which("git") or "git"
 
-    cache = lru_cache(maxsize=None)
+
+def check_output(
+    args: Tuple[str, ...],
+    cwd: Union[str, Path] = "",
+    echo: bool = False,
+) -> str:
+    """
+    This function wraps `subprocess.check_output`, but redirects stderr
+    to a temporary file, then deletes that file (a platform-independent
+    means of redirecting output to DEVNULL).
+
+    Parameters:
+
+    - command (Tuple[str, ...]): The command to run
+    """
+    if echo:
+        if cwd:
+            print("$", "cd", cwd, "&&", list2cmdline(args))
+        else:
+            print("$", list2cmdline(args))
+    output: str = run(
+        args,
+        stdout=PIPE,
+        stderr=DEVNULL,
+        check=True,
+        text=True,
+        cwd=cwd or None,
+    ).stdout
+    if echo:
+        print(output)
+    return output
+
+
+def get_iso_date(datetime_string: str) -> Optional[date]:
+    return (
+        datetime.fromisoformat(datetime_string.strip().rstrip("Z")).date()
+        if datetime_string
+        else None
+    )
 
 
 def update_url_user_password(
@@ -40,34 +76,30 @@ def update_url_user_password(
       invalid character (defaults to `urllib.parse.quote`)
     """
     assert url
-    if not user or password:
+    if not (user or password):
         return url
-    if not user:
-        # If a password, but not user name is provided, assume the password is
-        # a token
-        user = "__token__"
     parse_result: ParseResult = urlparse(url)
     host: str
     user_password: str
     user_password, host = parse_result.netloc.rpartition("@")[::2]
-    if user:
-        # A `user` parameter was provided
+    if user and password:
+        user_password = f"{quote(user)}:{quote(password)}"
+    elif user:
         user_password = quote(user)
-    elif user_password:
-        # The URL already had a user name in it, so we will use that.
-        # Since we know that a user name was not provided, and that we'd have
-        # returned the original URL already if neither user name nor password
-        # had been provided, we know that we have a `password` to append,
-        # so we will drop any password which might have been parsed from the
-        # URL.
+    elif password:
         user_password = user_password.partition(":")[0]
-    else:
-        # If no user name was provided, and none was in the URL already, assume
-        # the password is a token
-        user_password = "__token__"
-    if password:
-        user_password = f"{user_password}:{quote(password)}"
-    return urlunparse(
+        if user_password:
+            # The URL already had a user name in it, so we will use that.
+            # Since we know that a user name was not provided, and that we'd
+            # have returned the original URL already if neither user name nor
+            # password had been provided, we know that we have a `password` to
+            # append, so we will drop any password which might have been
+            # parsed from the URL.
+            user_password = f"{user_password}:{quote(password)}"
+        else:
+            # The password is a token
+            user_password = quote(password)
+    updated_url: str = urlunparse(
         (
             parse_result.scheme,
             f"{user_password}@{host}",
@@ -77,6 +109,9 @@ def update_url_user_password(
             parse_result.fragment,
         )
     )
+    if password:
+        assert url != updated_url
+    return updated_url
 
 
 def is_github_organization(
@@ -177,20 +212,29 @@ def clone(
     url = update_url_user_password(url, user, password)
     # Clone into a temp directory
     temp_directory: str = mkdtemp()
-    command: Tuple[str, ...] = ("git", "clone", "-q", "--filter=blob:none")
+    os.chmod(temp_directory, 0o777)
+    command: Tuple[str, ...] = (
+        GIT,
+        "clone",
+        "-q",
+        "--filter=blob:none",
+        "--bare",
+    )
     if since is not None:
         command += (f"--shallow-since={since.isoformat()}",)
     command += (url, temp_directory)
     try:
-        stderr_path: str = mktemp()
-        with open(stderr_path, "w") as stderr:
-            check_call(command, stderr=stderr)
-        os.remove(stderr_path)
+        check_output(command)
     except CalledProcessError as error:
         if since is not None:
             # Test to see if the error was due to the date
             try:
-                shutil.rmtree(clone(url, user=user, password=password))
+                shutil.rmtree(
+                    clone(url, user=user, password=password),
+                    # We only care about errors from the `clone` function call,
+                    # `rmtree` is just a cleanup operation
+                    ignore_errors=True,
+                )
             except Exception:
                 raise error
             # Cleanup the directory and return an empty string to indicate no
@@ -212,24 +256,46 @@ def normalize_author(author: str) -> str:
     return unicodedata.normalize("NFKD", str(author)).strip().capitalize()
 
 
-def iter_local_repo_author_names(path: str) -> Iterable[str]:
-    if path:
-        current_directory: str = os.getcwd()
-        path = os.path.abspath(path)
-        os.chdir(path)
-    try:
+def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
+    # Only look for authors if there is at least one commit
+    if int(
+        check_output(
+            (GIT, "rev-list", "--all", "--count"),
+            cwd=path,
+        ).strip()
+    ):
         line: str
-        for line in (
-            check_output(("git", "--no-pager", "shortlog", "-se"), text=True)
-            .strip()
-            .split("\n")
-        ):
-            name: str = line.strip().partition(" ")[2]
-            yield name
-    finally:
-        if path:
-            # Return to the original working directory
-            os.chdir(current_directory)
+        output: str = check_output(
+            (GIT, "--no-pager", "shortlog", "--summary", "--email"),
+            cwd=path,
+        )
+        name: str
+        if output:
+            for line in filter(
+                None,
+                output.strip().split("\n"),
+            ):
+                name = (
+                    re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
+                )
+                assert name, line
+                yield name
+        else:
+            # `git shortlog` is on the fritz, fall back to parsing the full log
+            output = check_output(
+                (GIT, "--no-pager", "log"),
+                cwd=path,
+            )
+            names: Set[str] = set()
+            for line in filter(
+                None,
+                output.strip().split("\n"),
+            ):
+                if line.startswith("Author:"):
+                    name = line[7:].strip()
+                    if name not in names:
+                        names.add(name)
+                        yield name
 
 
 def map_authors_names_normalized(names: Iterable[str]) -> Dict[str, str]:
@@ -372,24 +438,16 @@ _STATS_PATTERN: re.Pattern = re.compile(
 )
 
 
-def get_first_author_date(path: str = "") -> date:
-    if path:
-        current_directory: str = os.getcwd()
-        path = os.path.abspath(path)
-        os.chdir(path)
-    try:
-        output: str = check_output(
-            ("git", "log", "--reverse", "--date=iso8601-strict"), text=True
-        ).strip()
-        line: str
-        for line in output.split("\n"):
-            if line.startswith("Date:"):
-                return datetime.fromisoformat(line[5:].strip()).date()
-        raise ValueError(output)
-    finally:
-        if path:
-            # Return to the original working directory
-            os.chdir(current_directory)
+def get_first_author_date(path: Union[str, Path] = "") -> date:
+    output: str = check_output(
+        (GIT, "log", "--reverse", "--date=iso8601-strict"),
+        cwd=path,
+    ).strip()
+    line: str
+    for line in output.split("\n"):
+        if line.startswith("Date:"):
+            return cast(date, get_iso_date(line[5:]))
+    raise ValueError(output)
 
 
 def iter_local_repo_stats(
@@ -398,47 +456,35 @@ def iter_local_repo_stats(
     since: Optional[date] = None,
     before: Optional[date] = None,
 ) -> Iterable[Stats]:
-    current_directory: str
-    if path:
-        current_directory = os.getcwd()
-        path = os.path.abspath(path)
-        os.chdir(path)
-    try:
-        line: str
-        command: Tuple[str, ...] = (
-            "git",
-            "--no-pager",
-            "log",
-            "--author",
-            author,
-            "--format=tformat:",
-            "--numstat",
+    line: str
+    command: Tuple[str, ...] = (
+        GIT,
+        "--no-pager",
+        "log",
+        "--author",
+        author,
+        "--format=tformat:",
+        "--numstat",
+    )
+    if since is not None:
+        command += ("--since", since.isoformat())
+    if before is not None:
+        command += ("--before", before.isoformat())
+    for line in filter(
+        None,
+        map(str.strip, check_output(command, cwd=path).strip().split("\n")),
+    ):
+        matched: Optional[re.Match] = _STATS_PATTERN.match(line)
+        if not matched:
+            raise ValueError(line)
+        yield Stats(
+            author=author,
+            since=since,
+            before=before,
+            insertions=int(matched.group(1).rstrip("-") or 0),
+            deletions=int(matched.group(2).rstrip("-") or 0),
+            file=matched.group(3),
         )
-        if since is not None:
-            command += ("--since", since.isoformat())
-        if before is not None:
-            command += ("--before", before.isoformat())
-        for line in filter(
-            None,
-            map(
-                str.strip, check_output(command, text=True).strip().split("\n")
-            ),
-        ):
-            matched: Optional[re.Match] = _STATS_PATTERN.match(line)
-            if not matched:
-                raise ValueError(line)
-            yield Stats(
-                author=author,
-                since=since,
-                before=before,
-                insertions=int(matched.group(1).rstrip("-") or 0),
-                deletions=int(matched.group(2).rstrip("-") or 0),
-                file=matched.group(3),
-            )
-    finally:
-        if path:
-            # Return to the original working directory
-            os.chdir(current_directory)
 
 
 def increment_date_by_frequency(today: date, frequency: Frequency) -> date:
