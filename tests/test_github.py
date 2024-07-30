@@ -113,6 +113,7 @@ def test_cli_repo() -> None:
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
+    # Markdown
     lines: List[str] = (
         check_output(
             (
@@ -126,13 +127,33 @@ def test_cli_repo() -> None:
                 (date.today() - timedelta(days=365)).isoformat(),
                 "-p",
                 password,
+                "-md",
             ),
-            echo=True,
         )
         .strip()
         .split("\n")
     )
     assert len(lines) > 2
+    # CSV
+    lines = (
+        check_output(
+            (
+                sys.executable,
+                "-m",
+                "git_author_stats",
+                "https://github.com/enorganic/git-author-stats.git",
+                "-f",
+                "1w",
+                "--since",
+                (date.today() - timedelta(days=365)).isoformat(),
+                "-p",
+                password,
+            ),
+        )
+        .strip()
+        .split("\n")
+    )
+    assert len(lines) > 1
 
 
 def test_cli_org() -> None:

@@ -3,8 +3,24 @@
 [![test](https://github.com/enorganic/git-author-stats/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/enorganic/git-author-stats/actions/workflows/test.yml)
 [![distribute](https://github.com/enorganic/git-author-stats/actions/workflows/distribute.yml/badge.svg?branch=main)](https://github.com/enorganic/git-author-stats/actions/workflows/distribute.yml)
 
-This package provides a CLI and library for compiling author stats for a Git
-repository or Github organization.
+This package provides a CLI and library for extracting author "stats"
+(insertions and deletions) for a Git repository or Github organization.
+
+Under the hood, these metrics are obtained by:
+
+1. Cloning truncated versions of all specified repositories (or all repositories
+   in a specified Github org) into temp directories
+2. Using `git shortlog` to get a list of authors
+3. Calculating a series of date ranges based on the temporal limits and
+   frequency you've specified
+4. Using `git log --numstat` to get a count of the insertions and deletions made
+   by each author during each date range
+
+Please note that this package does not provide functionality for aggregation
+or analysis of the metrics extracted, instead the output is provided
+in a format suitable for use with tools such as [polars](https://pola.rs/),
+[pandas](https://pandas.pydata.org/), and
+[pyspark](https://spark.apache.org/docs/latest/api/python).
 
 ## Installation
 
@@ -18,18 +34,20 @@ pip3 install git-author-stats
 
 ### Command Line Interface
 
-The command-line interface for `git-author-stats`
+The command-line interface (CLI) for `git-author-stats` is suitable
+for outputting stats for a repository or Github org in a tabular data format
+for subsequent analysis.
 
 ```console
 $ git-author-stats -h
 usage: git-author-stats [-h] [-b BRANCH] [-u USER] [-p PASSWORD]
                         [--since SINCE] [--after AFTER]
-                        [--before BEFORE] [--until UNTIL]
-                        [-f FREQUENCY] [--delimiter DELIMITER]
+                        [--before BEFORE] [--until UNTIL] [-f FREQUENCY]
+                        [--delimiter DELIMITER] [-nh] [-md]
                         url [url ...]
 
-Retrieve author stats for a Github organization or Git
-repository.
+Print author stats for a Github organization or Git repository in the
+format of a Markdown table or CSV/TSV.
 
 positional arguments:
   url                   Repository URL(s)
@@ -37,45 +55,53 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -b BRANCH, --branch BRANCH
-                        Retrieve files from BRANCH instead of
-                        the remote's HEAD
+                        Retrieve files from BRANCH instead of the
+                        remote's HEAD
   -u USER, --user USER  A username for accessing the repository
   -p PASSWORD, --password PASSWORD
                         A password for accessing the repository
-  --since SINCE         Only include contributions on or after
-                        this date
-  --after AFTER         Only include contributions after this
+  --since SINCE         Only include contributions on or after this date
+  --after AFTER         Only include contributions after this date
+  --before BEFORE       Only include contributions before this date
+  --until UNTIL         Only include contributions on or before this
                         date
-  --before BEFORE       Only include contributions before this
-                        date
-  --until UNTIL         Only include contributions on or before
-                        this date
   -f FREQUENCY, --frequency FREQUENCY
-                        If provided, stats will be broken down
-                        over time intervals at the specified
-                        frequency. The frequency should be
-                        composed of an integer and unit of time
-                        (day, week, month, or year). For
-                        example, all of the following are valid:
-                        "1 week", "1w", "2 weeks", "2weeks", "4
-                        months", or "4m".
+                        If provided, stats will be broken down over time
+                        intervals at the specified frequency. The
+                        frequency should be composed of an integer and
+                        unit of time (day, week, month, or year). For
+                        example, all of the following are valid: "1
+                        week", "1w", "2 weeks", "2weeks", "4 months", or
+                        "4m".
   --delimiter DELIMITER
+                        The delimiter to use for CSV/TSV output
+                        (default: ',')
+  -nh, --no-header      Don't print the header row (only applies to
+                        CSV/TSV output)
+  -md, --markdown       Output a markdown table instead of CSV/TSV
 ```
 
-#### Examples
+#### CLI Examples
 
 Save stats for your Github org as a CSV, authenticating using a
 [personal access token](https://bit.ly/46mVout):
 
 ```bash
 git-author-stats --since 2024-01-01 --frequency 1w --password $GH_TOKEN \
---delimiter , https://github.com/enorganic > ./enorganic-author-stats.csv
+https://github.com/enorganic > ./enorganic-author-stats.csv
+```
+
+Save stats for a Github org as a TSV (public repos only):
+
+```bash
+git-author-stats --since 2024-01-01 --frequency 1w \
+--delimiter "\t" https://github.com/enorganic > ./enorganic-author-stats.csv
 ```
 
 Print stats for a repo as a markdown table:
 
 ```bash
-git-author-stats --since 2024-01-01 -f 1w https://github.com/enorganic/git-author-stats.git
+git-author-stats -md --since 2024-01-01 -f 1w https://github.com/enorganic/git-author-stats.git
 ```
 
 | url                                               | author                         | since      | before     | insertions | deletions | file                             |
