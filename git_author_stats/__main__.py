@@ -1,5 +1,6 @@
 import argparse
 import csv
+import re
 import sys
 import warnings
 from dataclasses import Field, fields
@@ -9,13 +10,25 @@ from typing import Any, List, Tuple, Union
 from ._stats import Stats, get_iso_date, iter_stats
 
 
+class _HelpFormatter(argparse.HelpFormatter):
+
+    def format_help(self) -> str:
+        return re.sub(
+            r"(\bREGULAR_EXPRESSION_ALIAS\b)([\s\n]+)(\1)",
+            r"REGULAR_EXPRESSION\2ALIAS",
+            super().format_help(),
+        )
+
+
 def _get_string_value(value: Union[str, date, float, int, None]) -> str:
     if isinstance(value, date):
         return value.isoformat()
     return str(value)
 
 
-def print_markdown_table(rows: List[Tuple[str, ...]]) -> None:
+def print_markdown_table(
+    rows: List[Tuple[str, ...]], no_header: bool = False
+) -> None:
     """
     Print a Markdown table representation of a list of equal-length tuples.
 
@@ -23,6 +36,8 @@ def print_markdown_table(rows: List[Tuple[str, ...]]) -> None:
 
     - rows (List[Tuple[str, ...]): The rows in the table.
     """
+    if rows and no_header:
+        rows = rows[1:]
     if not rows:
         return
     index: int
@@ -32,7 +47,7 @@ def print_markdown_table(rows: List[Tuple[str, ...]]) -> None:
         map(lambda index: max(map(lambda row: len(row[index]), rows)), indices)
     )
     empty_value: str = " " * max(column_widths)
-    is_first: bool = True
+    is_header: bool = bool(not no_header)
     for row in rows:
         value: str
         print(
@@ -43,14 +58,14 @@ def print_markdown_table(rows: List[Tuple[str, ...]]) -> None:
                 )
             )
         )
-        if is_first:
+        if is_header:
             # Print the header separator
             print(
                 "| {} |".format(
                     " | ".join("-" * column_widths[index] for index in indices)
                 )
             )
-        is_first = False
+        is_header = False
 
 
 def main() -> None:
@@ -60,6 +75,7 @@ def main() -> None:
             "Print author stats for a Github organization or Git "
             "repository in the format of a Markdown table or CSV/TSV."
         ),
+        formatter_class=_HelpFormatter,
     )
     parser.add_argument(
         "-b",
@@ -121,13 +137,38 @@ def main() -> None:
     )
     parser.add_argument(
         "--delimiter",
-        default="",
+        default=",",
         type=str,
+        help="The delimiter to use for CSV/TSV output (default: ',')",
+    )
+    parser.add_argument(
+        "-nh",
+        "--no-header",
+        action="store_true",
+        help="Don't print the header row (only applies to CSV/TSV output)",
+    )
+    parser.add_argument(
+        "-md",
+        "--markdown",
+        action="store_true",
+        help="Output a markdown table instead of CSV/TSV",
+    )
+    parser.add_argument(
+        "-rea",
+        "--regular-expression-alias",
+        default=[],
+        action="append",
+        nargs=2,
         help=(
-            "If provided, the output will be a CSV-like table with the "
-            "specified delimiter. If not provided, the output will be a "
-            "Markdown table."
+            "A regular expression and alias to use when an author "
+            "name matches the provided regular expression"
         ),
+    )
+    parser.add_argument(
+        "-e",
+        "--email",
+        action="store_true",
+        help="Include author email addresses in the output",
     )
     parser.add_argument("url", type=str, nargs="+", help="Repository URL(s)")
     namespace: argparse.Namespace = parser.parse_args()
@@ -140,13 +181,19 @@ def main() -> None:
         )
         rows: List[Tuple[str, ...]] = []
         stdout_csv_writer: Any
-        if namespace.delimiter:
+        if not namespace.markdown:
+            str.encode
             stdout_csv_writer = csv.writer(
                 sys.stdout,
-                delimiter=namespace.delimiter,
+                delimiter=(
+                    namespace.delimiter.replace("\\t", "\t")
+                    if namespace.delimiter
+                    else ","
+                ),
                 lineterminator="\n",
             )
-            stdout_csv_writer.writerow(field_names)
+            if not namespace.no_header:
+                stdout_csv_writer.writerow(field_names)
         else:
             rows.append(field_names)
         stats: Stats
@@ -159,6 +206,10 @@ def main() -> None:
             before=get_iso_date(namespace.before),
             until=get_iso_date(namespace.until),
             frequency=namespace.frequency,
+            regular_expression_aliases=tuple(
+                namespace.regular_expression_alias
+            ),
+            email=namespace.email,
         ):
             row: Tuple[str, ...] = tuple(
                 map(
@@ -166,12 +217,12 @@ def main() -> None:
                     map(stats.__getattribute__, field_names),
                 )
             )
-            if namespace.delimiter:
-                stdout_csv_writer.writerow(row)
-            else:
+            if namespace.markdown:
                 rows.append(row)
-        if rows:
-            print_markdown_table(rows)
+            else:
+                stdout_csv_writer.writerow(row)
+        if namespace.markdown and rows:
+            print_markdown_table(rows, no_header=namespace.no_header)
 
 
 if __name__ == "__main__":

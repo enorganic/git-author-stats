@@ -142,6 +142,7 @@ def test_get_first_author_date() -> None:
 
 
 def test_cli() -> None:
+    # Markdown
     lines: List[str] = (
         check_output(
             (
@@ -153,8 +154,26 @@ def test_cli() -> None:
                 "1w",
                 "--since",
                 (date.today() - timedelta(days=365)).isoformat(),
+                "-md",
             ),
-            echo=True,
+        )
+        .strip()
+        .split("\n")
+    )
+    assert len(lines) > 2
+    # CSV
+    lines = (
+        check_output(
+            (
+                sys.executable,
+                "-m",
+                "git_author_stats",
+                "https://github.com/enorganic/git-author-stats.git",
+                "-f",
+                "1w",
+                "--since",
+                (date.today() - timedelta(days=365)).isoformat(),
+            ),
         )
         .strip()
         .split("\n")

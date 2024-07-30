@@ -10,7 +10,18 @@ from operator import itemgetter
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, CalledProcessError, list2cmdline, run
 from tempfile import mkdtemp
-from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Union, cast
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+    cast,
+)
 from urllib.parse import ParseResult
 from urllib.parse import quote as _quote
 from urllib.parse import urlparse, urlunparse
@@ -24,9 +35,8 @@ def check_output(
     echo: bool = False,
 ) -> str:
     """
-    This function wraps `subprocess.check_output`, but redirects stderr
-    to a temporary file, then deletes that file (a platform-independent
-    means of redirecting output to DEVNULL).
+    This function mimics `subprocess.check_output`, but redirects stderr
+    to DEVNULL, and ignores unicode decoding errors.
 
     Parameters:
 
@@ -42,9 +52,8 @@ def check_output(
         stdout=PIPE,
         stderr=DEVNULL,
         check=True,
-        text=True,
         cwd=cwd or None,
-    ).stdout
+    ).stdout.decode("utf-8", errors="ignore")
     if echo:
         print(output)
     return output
@@ -256,7 +265,10 @@ def normalize_author(author: str) -> str:
     return unicodedata.normalize("NFKD", str(author)).strip().capitalize()
 
 
-def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
+def iter_local_repo_author_names(
+    path: Union[str, Path] = "",
+    email: bool = False,
+) -> Iterable[str]:
     # Only look for authors if there is at least one commit
     if int(
         check_output(
@@ -264,9 +276,12 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
             cwd=path,
         ).strip()
     ):
+        command: Tuple[str, ...] = (GIT, "--no-pager", "shortlog", "--summary")
+        if email:
+            command += ("--email",)
         line: str
         output: str = check_output(
-            (GIT, "--no-pager", "shortlog", "--summary", "--email"),
+            command,
             cwd=path,
         )
         name: str
@@ -293,6 +308,8 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
             ):
                 if line.startswith("Author:"):
                     name = line[7:].strip()
+                    if not email:
+                        name = name.partition("<")[0].rstrip()
                     if name not in names:
                         names.add(name)
                         yield name
@@ -332,11 +349,56 @@ def is_new_name_better_formatted(old: str, new: str) -> int:
     return False
 
 
-def map_authors_names(names: Iterable[str]) -> Dict[str, str]:
+def map_authors_regular_expression_aliases(
+    names: Iterable[str],
+    regular_expression_aliases: Union[
+        Mapping[str, str],
+        Tuple[Tuple[str, str], ...],
+    ] = (),
+) -> Dict[str, str]:
+    patterns_aliases: MutableMapping[re.Pattern[str], str] = {}
+    if not isinstance(regular_expression_aliases, Mapping):
+        regular_expression_aliases = dict(regular_expression_aliases)
+    key: str
+    value: str
+    for key, value in regular_expression_aliases.items():
+        patterns_aliases[re.compile(key)] = value
+    pattern: re.Pattern[str]
+    names_aliases: Dict[str, str] = {}
+    for name in names:
+        for pattern, value in patterns_aliases.items():
+            if pattern.match(name):
+                names_aliases[name] = value
+                # Use the first matched alias for each name
+                break
+    return names_aliases
+
+
+def map_authors_aliases(
+    names: Iterable[str],
+    regular_expression_aliases: Union[
+        Mapping[str, str],
+        Tuple[Tuple[str, str], ...],
+    ] = (),
+    email: bool = False,
+) -> Dict[str, str]:
     """
     Return a dictionary mapping author names to the best formatted variation
-    of the author's name
+    of the author's name, or to an alias, if the name matches any of the
+    regular expressions in `regular_expression_aliases`.
+
+    Parameters:
+
+    - names ([str]): Commit author names
+    - regular_expression_aliases ({str: str}|((str, str),)): A mapping of
+      regular expressions to aliases
+    - email (bool) = False: Include email addresses in automatically
+      generated aliases
     """
+    names_aliases: Dict[str, str] = map_authors_regular_expression_aliases(
+        names,
+        regular_expression_aliases,
+    )
     names_normalized: Dict[str, str] = map_authors_names_normalized(names)
     # Map a normalized name to the best formatted variation
     normalized_best: Dict[str, str] = {}
@@ -353,7 +415,17 @@ def map_authors_names(names: Iterable[str]) -> Dict[str, str]:
     # Map all names to their best formatted variation
     names_best: Dict[str, str] = {}
     for name, name_normalized in names_normalized.items():
-        names_best[name] = normalized_best[name_normalized]
+        best_name: str = normalized_best[name_normalized]
+        # If the name has an alias, use the alias
+        if name in names_aliases:
+            best_name = names_aliases[name]
+        elif best_name in names_aliases:
+            best_name = names_aliases[best_name]
+        # Remove the email address if it's not wanted in our output
+        if not email:
+            best_name = best_name.partition("<")[0].rstrip()
+            name = name.partition("<")[0].rstrip()
+        names_best[name] = best_name
     return names_best
 
 
@@ -470,6 +542,7 @@ def iter_local_repo_stats(
         command += ("--since", since.isoformat())
     if before is not None:
         command += ("--before", before.isoformat())
+    file_stats: Dict[str, Stats] = {}
     for line in filter(
         None,
         map(str.strip, check_output(command, cwd=path).strip().split("\n")),
@@ -477,7 +550,7 @@ def iter_local_repo_stats(
         matched: Optional[re.Match] = _STATS_PATTERN.match(line)
         if not matched:
             raise ValueError(line)
-        yield Stats(
+        stats: Stats = Stats(
             author=author,
             since=since,
             before=before,
@@ -485,6 +558,12 @@ def iter_local_repo_stats(
             deletions=int(matched.group(2).rstrip("-") or 0),
             file=matched.group(3),
         )
+        if stats.file in file_stats:
+            file_stats[stats.file].insertions += stats.insertions
+            file_stats[stats.file].deletions += stats.deletions
+        else:
+            file_stats[stats.file] = stats
+    yield from file_stats.values()
 
 
 def increment_date_by_frequency(today: date, frequency: Frequency) -> date:
@@ -583,6 +662,10 @@ def iter_stats(  # noqa: C901
     before: Optional[date] = None,
     until: Optional[date] = None,
     frequency: Union[str, Frequency, None] = None,
+    regular_expression_aliases: Union[
+        Mapping[str, str], Tuple[Tuple[str, str], ...]
+    ] = (),
+    email: bool = False,
 ) -> Iterable[Stats]:
     """
     Yield stats for all specified repositories, by author, for the specified
@@ -602,6 +685,7 @@ def iter_stats(  # noqa: C901
       broken down by the specified frequency. For example, if `frequency` is
       "1 week", stats will be yielded for each week in the specified time,
       starting with `since` and ending with `before` (if provided).
+    - alias_regular_expressions (((str, str),)) = ():
     """
     if isinstance(frequency, str):
         frequency = parse_frequency_string(frequency)
@@ -614,7 +698,7 @@ def iter_stats(  # noqa: C901
     paths_authors: Dict[str, Tuple[str, ...]] = {}
     # All author names
     author_names: Tuple[str, ...]
-    all_author_names: Set[str] = set()
+    all_author_names_emails: Set[str] = set()
     first_author_date: Optional[date] = None
     for path in map(itemgetter(1), urls_paths):
         if since is None:
@@ -624,10 +708,15 @@ def iter_stats(  # noqa: C901
                 first_author_date = min(
                     get_first_author_date(path), first_author_date
                 )
-        author_names = tuple(iter_local_repo_author_names(path))
+        author_names = tuple(iter_local_repo_author_names(path, email))
         paths_authors[path] = author_names
-        # Add to the set of all author names
-        all_author_names |= set(author_names)
+        # The author names used for mapping aliases needs to include email
+        # addresses
+        all_author_names_emails |= (
+            set(author_names)
+            if email
+            else set(iter_local_repo_author_names(path, email=True))
+        )
     if since is None:
         since = first_author_date
     if before is None:
@@ -635,7 +724,11 @@ def iter_stats(  # noqa: C901
     assert since and before and since < before
     # Get a mapping of author names to the best formatted variation of the
     # author's name
-    author_names_best: Dict[str, str] = map_authors_names(all_author_names)
+    authors_aliases: Dict[str, str] = map_authors_aliases(
+        all_author_names_emails,
+        regular_expression_aliases,
+        email=email,
+    )
     # Yield stats for each author, for each repository, for each time period
     for url, path in urls_paths:
         author_names = paths_authors[path]
@@ -658,5 +751,5 @@ def iter_stats(  # noqa: C901
                     before=period_before,
                 ):
                     stats.url = url
-                    stats.author = author_names_best[stats.author]
+                    stats.author = authors_aliases[stats.author]
                     yield stats
