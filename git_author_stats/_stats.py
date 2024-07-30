@@ -32,16 +32,18 @@ def check_output(
 
     - command (Tuple[str, ...]): The command to run
     """
-    cwd = cwd or os.getcwd()
     if echo:
-        print("$", "cd", cwd, "&&", list2cmdline(args))
+        if cwd:
+            print("$", "cd", cwd, "&&", list2cmdline(args))
+        else:
+            print("$", list2cmdline(args))
     output: str = run(
         args,
         stdout=PIPE,
         stderr=DEVNULL,
         check=True,
         text=True,
-        cwd=cwd,
+        cwd=cwd or None,
     ).stdout
     if echo:
         print(output)
@@ -210,6 +212,7 @@ def clone(
     url = update_url_user_password(url, user, password)
     # Clone into a temp directory
     temp_directory: str = mkdtemp()
+    os.chmod(temp_directory, 0o777)
     command: Tuple[str, ...] = (
         GIT,
         "clone",
@@ -263,18 +266,36 @@ def iter_local_repo_author_names(path: Union[str, Path] = "") -> Iterable[str]:
     ):
         line: str
         output: str = check_output(
-            (GIT, "--no-pager", "shortlog", "-se"),
+            (GIT, "--no-pager", "shortlog", "--summary", "--email"),
             cwd=path,
         )
-        for line in filter(
-            None,
-            output.strip().split("\n"),
-        ):
-            name: str = (
-                re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
+        name: str
+        if output:
+            for line in filter(
+                None,
+                output.strip().split("\n"),
+            ):
+                name = (
+                    re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
+                )
+                assert name, line
+                yield name
+        else:
+            # `git shortlog` is on the fritz, fall back to parsing the full log
+            output = check_output(
+                (GIT, "--no-pager", "log"),
+                cwd=path,
             )
-            assert name, line
-            yield name
+            names: Set[str] = set()
+            for line in filter(
+                None,
+                output.strip().split("\n"),
+            ):
+                if line.startswith("Author:"):
+                    name = line[7:].strip()
+                    if name not in names:
+                        names.add(name)
+                        yield name
 
 
 def map_authors_names_normalized(names: Iterable[str]) -> Dict[str, str]:

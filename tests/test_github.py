@@ -3,7 +3,6 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 from typing import List, Tuple
-from warnings import warn
 
 import pandas
 import polars

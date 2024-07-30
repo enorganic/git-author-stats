@@ -1,9 +1,7 @@
-import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 from typing import List, Optional, Tuple
-from warnings import warn
 
 import pandas  # type: ignore
 import polars
