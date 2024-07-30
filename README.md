@@ -64,10 +64,11 @@ optional arguments:
 
 #### Examples
 
-Save stats for an org as a CSV:
+Save stats for your Github org as a CSV, authenticating using a
+[personal access token](https://bit.ly/46mVout):
 
 ```bash
-git-author-stats --since 2024-01-01 --frequency 1w --password $GH_PASSWORD \
+git-author-stats --since 2024-01-01 --frequency 1w --password $GH_TOKEN \
 --delimiter , https://github.com/enorganic > ./enorganic-author-stats.csv
 ```
 
