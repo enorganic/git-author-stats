@@ -47,16 +47,16 @@ def check_output(
             print("$", "cd", cwd, "&&", list2cmdline(args))
         else:
             print("$", list2cmdline(args))
-    output: bytes = run(
+    output: str = run(
         args,
         stdout=PIPE,
         stderr=DEVNULL,
         check=True,
         cwd=cwd or None,
-    ).stdout
+    ).stdout.decode("utf-8", errors="ignore")
     if echo:
         print(output)
-    return output.decode("utf-8", errors="ignore")
+    return output
 
 
 def get_iso_date(datetime_string: str) -> Optional[date]:
