@@ -288,43 +288,23 @@ def iter_local_repo_author_names(
             cwd=path,
         ).strip()
     ):
-        command: Tuple[str, ...] = (GIT, "--no-pager", "shortlog", "--summary")
-        if email:
-            command += ("--email",)
         line: str
         output: str = check_output(
-            command,
+            (GIT, "--no-pager", "log"),
             cwd=path,
         )
-        name: str
-        if output:
-            for line in filter(
-                None,
-                output.strip().split("\n"),
-            ):
-                name = (
-                    re.sub(r"\s+", " ", line.strip()).partition(" ")[2].strip()
-                )
-                assert name, line
-                yield name
-        else:
-            # `git shortlog` is on the fritz, fall back to parsing the full log
-            output = check_output(
-                (GIT, "--no-pager", "log"),
-                cwd=path,
-            )
-            names: Set[str] = set()
-            for line in filter(
-                None,
-                output.strip().split("\n"),
-            ):
-                if line.startswith("Author:"):
-                    name = line[7:].strip()
-                    if not email:
-                        name = name.partition("<")[0].rstrip()
-                    if name not in names:
-                        names.add(name)
-                        yield name
+        names: Set[str] = set()
+        for line in filter(
+            None,
+            output.strip().split("\n"),
+        ):
+            if line.startswith("Author:"):
+                name = line[7:].strip()
+                if not email:
+                    name = name.partition("<")[0].rstrip()
+                if name not in names:
+                    names.add(name)
+                    yield name
 
 
 def map_authors_names_normalized(names: Iterable[str]) -> Dict[str, str]:
