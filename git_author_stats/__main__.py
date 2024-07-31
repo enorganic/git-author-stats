@@ -1,13 +1,9 @@
 import argparse
-import csv
 import re
 import sys
 import warnings
-from dataclasses import Field, fields
-from datetime import date
-from typing import Any, List, Tuple, Union
 
-from ._stats import Stats, get_iso_date, iter_stats
+from ._stats import get_iso_date, write_stats
 
 
 class _HelpFormatter(argparse.HelpFormatter):
@@ -18,54 +14,6 @@ class _HelpFormatter(argparse.HelpFormatter):
             r"REGULAR_EXPRESSION\2ALIAS",
             super().format_help(),
         )
-
-
-def _get_string_value(value: Union[str, date, float, int, None]) -> str:
-    if isinstance(value, date):
-        return value.isoformat()
-    return str(value)
-
-
-def print_markdown_table(
-    rows: List[Tuple[str, ...]], no_header: bool = False
-) -> None:
-    """
-    Print a Markdown table representation of a list of equal-length tuples.
-
-    Parameters:
-
-    - rows (List[Tuple[str, ...]): The rows in the table.
-    """
-    if rows and no_header:
-        rows = rows[1:]
-    if not rows:
-        return
-    index: int
-    row: Tuple[str, ...]
-    indices: Tuple[int, ...] = tuple(range(len(rows[0])))
-    column_widths: Tuple[int, ...] = tuple(
-        map(lambda index: max(map(lambda row: len(row[index]), rows)), indices)
-    )
-    empty_value: str = " " * max(column_widths)
-    is_header: bool = bool(not no_header)
-    for row in rows:
-        value: str
-        print(
-            "| {} |".format(
-                " | ".join(
-                    f"{value}{empty_value}"[: column_widths[index]]
-                    for index, value in zip(indices, row)
-                )
-            )
-        )
-        if is_header:
-            # Print the header separator
-            print(
-                "| {} |".format(
-                    " | ".join("-" * column_widths[index] for index in indices)
-                )
-            )
-        is_header = False
 
 
 def main() -> None:
@@ -174,30 +122,8 @@ def main() -> None:
     namespace: argparse.Namespace = parser.parse_args()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        field: Field
-        # Print the header
-        field_names: Tuple[str, ...] = tuple(
-            map(lambda field: field.name, fields(Stats))
-        )
-        rows: List[Tuple[str, ...]] = []
-        stdout_csv_writer: Any
-        if not namespace.markdown:
-            str.encode
-            stdout_csv_writer = csv.writer(
-                sys.stdout,
-                delimiter=(
-                    namespace.delimiter.replace("\\t", "\t")
-                    if namespace.delimiter
-                    else ","
-                ),
-                lineterminator="\n",
-            )
-            if not namespace.no_header:
-                stdout_csv_writer.writerow(field_names)
-        else:
-            rows.append(field_names)
-        stats: Stats
-        for stats in iter_stats(
+        write_stats(
+            file=sys.stdout,
             urls=namespace.url,
             user=namespace.user,
             password=namespace.password,
@@ -210,19 +136,10 @@ def main() -> None:
                 namespace.regular_expression_alias
             ),
             email=namespace.email,
-        ):
-            row: Tuple[str, ...] = tuple(
-                map(
-                    _get_string_value,
-                    map(stats.__getattribute__, field_names),
-                )
-            )
-            if namespace.markdown:
-                rows.append(row)
-            else:
-                stdout_csv_writer.writerow(row)
-        if namespace.markdown and rows:
-            print_markdown_table(rows, no_header=namespace.no_header)
+            delimiter=namespace.delimiter,
+            no_header=namespace.no_header,
+            markdown=namespace.markdown,
+        )
 
 
 if __name__ == "__main__":

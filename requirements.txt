@@ -8,7 +8,7 @@ click==8.1.7
 colorama==0.4.6
 cryptography==43.0.0
 daves-dev-tools==2.1.2
-dependence==0.3.0
+dependence==0.3.2
 Deprecated==1.2.14
 distlib==0.3.8
 docutils==0.20.1
@@ -27,7 +27,7 @@ mccabe==0.7.0
 mdurl==0.1.2
 more-itertools==10.3.0
 mypy-extensions==1.0.0
-mypy==1.11.0
+mypy==1.11.1
 nh3==0.2.18
 packaging==24.1
 pandas==2.0.3
@@ -53,7 +53,7 @@ requests-toolbelt==1.0.0
 requests==2.32.3
 rfc3986==2.0.0
 rich==13.7.1
-setuptools==71.1.0
+setuptools==72.1.0
 six==1.16.0
 tomli==2.0.1
 tomli_w==1.0.0
