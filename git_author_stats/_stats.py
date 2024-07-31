@@ -1,9 +1,10 @@
+import csv
 import os
 import re
 import shutil
 import unicodedata
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import Field, dataclass, fields
 from datetime import date, datetime, timedelta
 from enum import Enum
 from operator import itemgetter
@@ -11,13 +12,16 @@ from pathlib import Path
 from subprocess import DEVNULL, PIPE, CalledProcessError, list2cmdline, run
 from tempfile import mkdtemp
 from typing import (
+    Any,
     Callable,
     Dict,
     Iterable,
+    List,
     Mapping,
     MutableMapping,
     Optional,
     Set,
+    TextIO,
     Tuple,
     Union,
     cast,
@@ -685,7 +689,7 @@ def iter_stats(  # noqa: C901
       broken down by the specified frequency. For example, if `frequency` is
       "1 week", stats will be yielded for each week in the specified time,
       starting with `since` and ending with `before` (if provided).
-    - alias_regular_expressions (((str, str),)) = ():
+    - regular_expression_aliases (((str, str),)) = ():
     """
     if isinstance(frequency, str):
         frequency = parse_frequency_string(frequency)
@@ -753,3 +757,137 @@ def iter_stats(  # noqa: C901
                     stats.url = url
                     stats.author = authors_aliases[stats.author]
                     yield stats
+
+
+def get_string_value(value: Union[str, date, float, int, None]) -> str:
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
+
+
+def print_markdown_table(
+    rows: List[Tuple[str, ...]], no_header: bool = False
+) -> None:
+    """
+    Print a Markdown table representation of a list of equal-length tuples.
+
+    Parameters:
+
+    - rows (List[Tuple[str, ...]): The rows in the table.
+    """
+    if rows and no_header:
+        rows = rows[1:]
+    if not rows:
+        return
+    index: int
+    row: Tuple[str, ...]
+    indices: Tuple[int, ...] = tuple(range(len(rows[0])))
+    column_widths: Tuple[int, ...] = tuple(
+        map(lambda index: max(map(lambda row: len(row[index]), rows)), indices)
+    )
+    empty_value: str = " " * max(column_widths)
+    is_header: bool = bool(not no_header)
+    for row in rows:
+        value: str
+        print(
+            "| {} |".format(
+                " | ".join(
+                    f"{value}{empty_value}"[: column_widths[index]]
+                    for index, value in zip(indices, row)
+                )
+            )
+        )
+        if is_header:
+            # Print the header separator
+            print(
+                "| {} |".format(
+                    " | ".join("-" * column_widths[index] for index in indices)
+                )
+            )
+        is_header = False
+
+
+def write_stats(
+    file: Union[str, Path, TextIO],
+    urls: Union[str, Iterable[str]],
+    user: str = "",
+    password: str = "",
+    since: Optional[date] = None,
+    after: Optional[date] = None,
+    before: Optional[date] = None,
+    until: Optional[date] = None,
+    frequency: Union[str, Frequency, None] = None,
+    regular_expression_aliases: Union[
+        Mapping[str, str], Tuple[Tuple[str, str], ...]
+    ] = (),
+    email: bool = False,
+    no_header: bool = False,
+    delimiter: str = ",",
+    markdown: bool = False,
+) -> None:
+    """
+    Write stats for all specified repositories, by author, for the specified
+    time period and frequency (if provided), to a CSV file.
+
+    Parameters:
+
+    - urls (str|[str]): One or more git URLs, as you would pass to `git clone`,
+      or the URL of a Github organization
+    - user (str) = "": A username with which to authenticate.
+      Note: If neither user name nor password are provided, the default system
+      configuration will be used.
+    - password (str) = "": A password/token with which to authenticate.
+    - since (date|None) = None: If provided, only yield stats after this date
+    - before (date|None) = None: If provided, only yield stats before this date
+    - frequency (str|Frequency|None) = None: If provided, yield stats
+      broken down by the specified frequency. For example, if `frequency` is
+      "1 week", stats will be yielded for each week in the specified time,
+      starting with `since` and ending with `before` (if provided).
+    - regular_expression_aliases (((str, str),)) = ()
+    - delimiter (str) = ",": The delimiter to use for CSV/TSV output
+    - markdown (bool) = False: Output a markdown table (instead of CSV/TSV)
+    - no_header (bool) = False: Do not include a header in the output
+    """
+    if isinstance(file, (str, Path)):
+        file = open(file, "wt")
+    field: Field
+    field_names: Tuple[str, ...] = tuple(
+        map(lambda field: field.name, fields(Stats))
+    )
+    rows: List[Tuple[str, ...]] = []
+    csv_writer: Any = None
+    if markdown:
+        rows.append(field_names)
+    else:
+        csv_writer = csv.writer(
+            file,
+            delimiter=(delimiter.replace("\\t", "\t") if delimiter else ","),
+            lineterminator="\n",
+        )
+        if not no_header:
+            csv_writer.writerow(field_names)
+    stats: Stats
+    for stats in iter_stats(
+        urls=urls,
+        user=user,
+        password=password,
+        since=since,
+        after=after,
+        before=before,
+        until=until,
+        frequency=frequency,
+        regular_expression_aliases=regular_expression_aliases,
+        email=email,
+    ):
+        row: Tuple[str, ...] = tuple(
+            map(
+                get_string_value,
+                map(stats.__getattribute__, field_names),
+            )
+        )
+        if markdown:
+            rows.append(row)
+        else:
+            csv_writer.writerow(row)
+    if markdown and rows:
+        print_markdown_table(rows, no_header=no_header)
