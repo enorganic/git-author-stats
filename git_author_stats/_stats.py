@@ -30,6 +30,14 @@ from urllib.parse import ParseResult
 from urllib.parse import quote as _quote
 from urllib.parse import urlparse, urlunparse
 
+cache: Callable[[Callable], Callable]
+try:
+    from functools import cache  # type: ignore
+except ImportError:
+    from functools import lru_cache
+
+    cache = lru_cache(maxsize=None)
+
 GIT: str = shutil.which("git") or "git"
 
 
@@ -507,6 +515,32 @@ class Stats:
     deletions: int = 0
     file: str = ""
 
+    def __init__(
+        self,
+        url: str = "",
+        author: str = "",
+        since: Union[date, str, None] = None,
+        before: Union[date, str, None] = None,
+        insertions: Union[int, str] = 0,
+        deletions: Union[int, str] = 0,
+        file: str = "",
+    ) -> None:
+        if isinstance(since, str):
+            since = get_iso_date(since)
+        if isinstance(before, str):
+            before = get_iso_date(before)
+        if isinstance(insertions, str):
+            insertions = int(insertions)
+        if isinstance(deletions, str):
+            deletions = int(deletions)
+        self.url: str = url
+        self.author: str = author
+        self.since: date = since
+        self.before: date = before
+        self.insertions: int = insertions
+        self.deletions: int = deletions
+        self.file: str = file
+
 
 _STATS_PATTERN: re.Pattern = re.compile(
     r"[^\d]*?([\d\-]+)\s+([\d\-]+)\s+([^\n]+)(?:\n|$)",
@@ -812,23 +846,35 @@ def write_markdown_table(
         is_header = False
 
 
+def _get_file_path(file: Union[str, Path, TextIO]) -> Optional[Path]:
+    if isinstance(file, (str, Path)):
+        if isinstance(file, str):
+            return Path(file)
+        else:
+            return file
+    else:
+        if hasattr(file, "name"):
+            return Path(file.name)
+    return None
+
+
+def _get_path_delimiter(path: Path) -> str:
+    extension: str = path.suffix.lower().lstrip(".").lower()
+    return "" if extension == "md" else "\t" if extension == "tsv" else ","
+
+
+@cache
+def _get_stats_field_names() -> Tuple[str, ...]:
+    field: Field
+    return tuple(map(lambda field: field.name, fields(Stats)))
+
+
 def write_stats(
+    stats: Iterable[Stats],
     file: Union[str, Path, TextIO],
-    urls: Union[str, Iterable[str]],
-    user: str = "",
-    password: str = "",
-    since: Optional[date] = None,
-    after: Optional[date] = None,
-    before: Optional[date] = None,
-    until: Optional[date] = None,
-    frequency: Union[str, Frequency, None] = None,
-    regular_expression_aliases: Union[
-        Mapping[str, str], Tuple[Tuple[str, str], ...]
-    ] = (),
-    email: bool = False,
     no_header: bool = False,
-    delimiter: str = ",",
-    markdown: bool = False,
+    delimiter: str = "",
+    markdown: Optional[bool] = None,
 ) -> None:
     """
     Write stats for all specified repositories, by author, for the specified
@@ -836,59 +882,55 @@ def write_stats(
 
     Parameters:
 
+    - stats (typing.Iterable[git_author_stats.Stats]): The stats to write
     - file (str|pathlib.Path|typing.TextIO): A file path or file-like object
-    - urls (str|[str]): One or more git URLs, as you would pass to `git clone`,
-      or the URL of a Github organization
-    - user (str) = "": A username with which to authenticate.
-      Note: If neither user name nor password are provided, the default system
-      configuration will be used.
-    - password (str) = "": A password/token with which to authenticate.
-    - since (date|None) = None: If provided, only yield stats after this date
-    - before (date|None) = None: If provided, only yield stats before this date
-    - frequency (str|Frequency|None) = None: If provided, yield stats
-      broken down by the specified frequency. For example, if `frequency` is
-      "1 week", stats will be yielded for each week in the specified time,
-      starting with `since` and ending with `before` (if provided).
-    - regular_expression_aliases (((str, str),)) = ()
-    - delimiter (str) = ",": The delimiter to use for CSV/TSV output
-    - markdown (bool) = False: Output a markdown table (instead of CSV/TSV)
+    - delimiter (str) = "": The delimiter to use for CSV/TSV output.
+      If not provided, the delimiter will be inferred based on the file
+      extension if possible, otherwise it will default to ",".
+    - markdown (bool|None) = None: If `True`, a markdown table
+      will be written. If `False`, a CSV/TSV file will be written.
+      If `None`, the output format will be inferred based on the file's
+      extension.
     - no_header (bool) = False: Do not include a header in the output
     """
+    # Determine the output format
+    path: Optional[Path] = _get_file_path(file)
+    if (not (markdown or delimiter)) and (path is not None):
+        delimiter = _get_path_delimiter(path)
+    if markdown is None:
+        markdown = bool(
+            (not delimiter)
+            and ((path is None) or path.suffix.lower().lstrip(".") == "md")
+        )
+    # Open a file for writing, if necessary
+    file_io: TextIO
     if isinstance(file, (str, Path)):
-        file = open(file, "wt")
-    field: Field
-    field_names: Tuple[str, ...] = tuple(
-        map(lambda field: field.name, fields(Stats))
-    )
-    rows: List[Tuple[str, ...]] = []
-    csv_writer: Any = None
+        file_io = open(file, "wt")
+    else:
+        file_io = file
+    # Get the header
+    field_names: Tuple[str, ...] = _get_stats_field_names()
+    # The `rows` list will only be needed for markdown output
+    rows: List[Tuple[str, ...]]
+    # The CSV writer will only be needed for CSV/TSV output
+    csv_writer: Any
     if markdown:
+        rows = []
         rows.append(field_names)
     else:
         csv_writer = csv.writer(
-            file,
+            file_io,
             delimiter=(delimiter.replace("\\t", "\t") if delimiter else ","),
             lineterminator="\n",
         )
         if not no_header:
             csv_writer.writerow(field_names)
-    stats: Stats
-    for stats in iter_stats(
-        urls=urls,
-        user=user,
-        password=password,
-        since=since,
-        after=after,
-        before=before,
-        until=until,
-        frequency=frequency,
-        regular_expression_aliases=regular_expression_aliases,
-        email=email,
-    ):
+    stat: Stats
+    for stat in stats:
         row: Tuple[str, ...] = tuple(
             map(
                 get_string_value,
-                map(stats.__getattribute__, field_names),
+                map(stat.__getattribute__, field_names),
             )
         )
         if markdown:
@@ -896,4 +938,30 @@ def write_stats(
         else:
             csv_writer.writerow(row)
     if markdown and rows:
-        write_markdown_table(file, rows, no_header=no_header)
+        write_markdown_table(file_io, rows, no_header=no_header)
+
+
+def read_stats(
+    file: Union[str, Path, TextIO],
+    delimiter: str = "",
+) -> Iterable[Stats]:
+    if not delimiter:
+        path: Optional[Path] = _get_file_path(file)
+        if path is not None:
+            delimiter = _get_path_delimiter(path)
+    if isinstance(file, (str, Path)):
+        file = open(file, "rt")
+    if delimiter:
+        delimiter = delimiter.replace("\\t", "\t")
+    field_names: List[str] = list(_get_stats_field_names())
+    row: List[str]
+    check_header: bool = True
+    for row in csv.reader(
+        file,
+        delimiter=delimiter or ",",
+        lineterminator="\n",
+    ):
+        if not (check_header and row == field_names):
+            yield Stats(*row)
+        # Stop checking to see if the row is the header after the first row
+        check_header = False
