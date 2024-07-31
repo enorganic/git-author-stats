@@ -765,16 +765,21 @@ def get_string_value(value: Union[str, date, float, int, None]) -> str:
     return str(value)
 
 
-def print_markdown_table(
-    rows: List[Tuple[str, ...]], no_header: bool = False
+def write_markdown_table(
+    file: Union[str, Path, TextIO],
+    rows: List[Tuple[str, ...]],
+    no_header: bool = False,
 ) -> None:
     """
-    Print a Markdown table representation of a list of equal-length tuples.
+    Write a Markdown table representation of a list of equal-length tuples.
 
     Parameters:
 
+    - file (str|pathlib.Path|typing.TextIO): A file path or file-like object
     - rows (List[Tuple[str, ...]): The rows in the table.
     """
+    if isinstance(file, (str, Path)):
+        file = open(file, "wt")
     if rows and no_header:
         rows = rows[1:]
     if not rows:
@@ -789,8 +794,8 @@ def print_markdown_table(
     is_header: bool = bool(not no_header)
     for row in rows:
         value: str
-        print(
-            "| {} |".format(
+        file.write(
+            "| {} |\n".format(
                 " | ".join(
                     f"{value}{empty_value}"[: column_widths[index]]
                     for index, value in zip(indices, row)
@@ -799,8 +804,8 @@ def print_markdown_table(
         )
         if is_header:
             # Print the header separator
-            print(
-                "| {} |".format(
+            file.write(
+                "| {} |\n".format(
                     " | ".join("-" * column_widths[index] for index in indices)
                 )
             )
@@ -831,6 +836,7 @@ def write_stats(
 
     Parameters:
 
+    - file (str|pathlib.Path|typing.TextIO): A file path or file-like object
     - urls (str|[str]): One or more git URLs, as you would pass to `git clone`,
       or the URL of a Github organization
     - user (str) = "": A username with which to authenticate.
@@ -890,4 +896,4 @@ def write_stats(
         else:
             csv_writer.writerow(row)
     if markdown and rows:
-        print_markdown_table(rows, no_header=no_header)
+        write_markdown_table(file, rows, no_header=no_header)
