@@ -8,13 +8,12 @@ This package provides a CLI and library for extracting author "stats"
 
 Under the hood, these metrics are obtained by:
 
-1. Cloning truncated versions of all specified repositories (or all repositories
-   in a specified Github org) into temp directories
-2. Using `git shortlog` to get a list of authors
-3. Calculating a series of date ranges based on the temporal limits and
+1. Cloning truncated versions of all specified repositories (or all
+   repositories in a specified Github organizations) into temp directories
+2. Calculating a series of date ranges based on the temporal limits and
    frequency you've specified
-4. Using `git log --numstat` to get a count of the insertions and deletions made
-   by each author during each date range
+3. Using `git log --numstat` to get a count of the insertions and deletions
+   made by each author during each date range
 
 Please note that this package does not provide functionality for aggregation
 or analysis of the metrics extracted, instead the output is provided
