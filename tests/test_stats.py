@@ -1,7 +1,8 @@
 import sys
 from datetime import date, timedelta
+from io import StringIO
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 import pandas  # type: ignore
 import polars
@@ -17,9 +18,14 @@ from git_author_stats._stats import (
     iter_date_ranges,
     iter_stats,
     parse_frequency_string,
+    read_stats,
+    write_stats,
 )
 
-ROOT_PATH: Path = Path(__file__).parent.parent
+ROOT_PATH: Path = Path(__file__).absolute().parent.parent
+STATS_CSV_PATH: Path = ROOT_PATH / "tests/stats.csv"
+STATS_TSV_PATH: Path = ROOT_PATH / "tests/stats.tsv"
+STATS_MD_PATH: Path = ROOT_PATH / "tests/stats.md"
 
 
 def test_parse_frequency_string() -> None:
@@ -179,6 +185,54 @@ def test_cli() -> None:
         .split("\n")
     )
     assert len(lines) > 2
+
+
+def test_read_write() -> None:
+    """
+    Test read/write functions
+    """
+    stats: Iterable[Stats] = read_stats(STATS_CSV_PATH)
+    if STATS_TSV_PATH.exists():
+        tsv_contents: str
+        with open(STATS_TSV_PATH, "rt", errors="ignore") as file:
+            tsv_contents = file.read().strip()
+        # Explicitly indicate the file format
+        tsv_io: StringIO = StringIO()
+        write_stats(read_stats(STATS_CSV_PATH), tsv_io, delimiter="\t")
+        tsv_io.seek(0)
+        test_tsv_contents: str = tsv_io.read().strip()
+        assert test_tsv_contents == tsv_contents
+        # Infer the format from the file name
+        tsv_io = StringIO()
+        tsv_io.name = "stats.tsv"
+        write_stats(read_stats(STATS_CSV_PATH), tsv_io, delimiter="\t")
+        tsv_io.seek(0)
+        test_tsv_contents = tsv_io.read().strip()
+        assert test_tsv_contents == tsv_contents
+    else:
+        write_stats(stats, STATS_TSV_PATH)
+    if STATS_MD_PATH.exists():
+        md_contents: str
+        with open(STATS_MD_PATH, "rt", errors="ignore") as file:
+            md_contents = file.read().strip()
+        # Explicitly indicate the file format
+        md_io: StringIO = StringIO()
+        write_stats(read_stats(STATS_CSV_PATH), md_io, markdown=True)
+        md_io.seek(0)
+        test_md_contents: str = md_io.read().strip()
+        assert test_md_contents == md_contents
+        # Infer the format from the file name
+        md_io = StringIO()
+        md_io.name = "stats.md"
+        write_stats(read_stats(STATS_CSV_PATH), md_io, markdown=True)
+        md_io.seek(0)
+        test_md_contents = md_io.read().strip()
+        assert test_md_contents == md_contents
+    else:
+        write_stats(
+            read_stats(STATS_TSV_PATH),
+            STATS_MD_PATH,
+        )
 
 
 if __name__ == "__main__":

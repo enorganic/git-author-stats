@@ -3,7 +3,7 @@ import re
 import sys
 import warnings
 
-from ._stats import get_iso_date, write_stats
+from ._stats import get_iso_date, iter_stats, write_stats
 
 
 class _HelpFormatter(argparse.HelpFormatter):
@@ -123,19 +123,21 @@ def main() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         write_stats(
-            file=sys.stdout,
-            urls=namespace.url,
-            user=namespace.user,
-            password=namespace.password,
-            since=get_iso_date(namespace.since),
-            after=get_iso_date(namespace.after),
-            before=get_iso_date(namespace.before),
-            until=get_iso_date(namespace.until),
-            frequency=namespace.frequency,
-            regular_expression_aliases=tuple(
-                namespace.regular_expression_alias
+            iter_stats(
+                urls=namespace.url,
+                user=namespace.user,
+                password=namespace.password,
+                since=get_iso_date(namespace.since),
+                after=get_iso_date(namespace.after),
+                before=get_iso_date(namespace.before),
+                until=get_iso_date(namespace.until),
+                frequency=namespace.frequency,
+                regular_expression_aliases=tuple(
+                    namespace.regular_expression_alias
+                ),
+                email=namespace.email,
             ),
-            email=namespace.email,
+            file=sys.stdout,
             delimiter=namespace.delimiter,
             no_header=namespace.no_header,
             markdown=namespace.markdown,
