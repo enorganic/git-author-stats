@@ -271,9 +271,6 @@ def normalize_author(author: str) -> str:
     """
     Normalize an author name.
     """
-    if "<" in author:
-        # If there is an email address, use that as the normalized author name
-        author = author.partition("<")[2].strip("> ")
     return unicodedata.normalize("NFKD", str(author)).strip().capitalize()
 
 
