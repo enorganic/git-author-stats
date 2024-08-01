@@ -271,7 +271,7 @@ def normalize_author(author: str) -> str:
     """
     Normalize an author name.
     """
-    return unicodedata.normalize("NFKD", str(author)).strip().capitalize()
+    return unicodedata.normalize("NFKD", author).strip().capitalize()
 
 
 def iter_local_repo_author_names(
