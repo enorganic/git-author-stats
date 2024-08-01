@@ -930,7 +930,7 @@ def read_stats(
         if path is not None:
             delimiter = _get_path_delimiter(path)
     if isinstance(file, (str, Path)):
-        file = open(file, "rt")
+        file = open(file, "rt", errors="ignore")
     if delimiter:
         delimiter = delimiter.replace("\\t", "\t")
     field_names: List[str] = list(_get_stats_field_names())
