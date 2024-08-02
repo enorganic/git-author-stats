@@ -271,6 +271,9 @@ def iter_clone(
                 )
                 if path:
                     yield repository_url, path
+        elif os.path.isdir(url):
+            # If this is a local directory, there is no need to clone it
+            yield url, url
         else:
             path = clone(url, user=user, password=password, since=since)
             if path:
@@ -682,7 +685,7 @@ def get_date_range_map(
     return dict(_iter_date_range_map(frequency, since, after, before, until))
 
 
-def iter_stats(  # noqa: C901
+def iter_stats(
     urls: Union[str, Iterable[str]],
     user: str = "",
     password: str = "",
