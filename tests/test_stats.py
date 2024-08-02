@@ -113,7 +113,7 @@ def test_iter_repo_stats() -> None:
     stats: Tuple[Stats, ...] = tuple(
         iter_stats(
             urls="https://github.com/enorganic/git-author-stats.git",
-            frequency=Frequency(2, FrequencyUnit.WEEK),
+            frequency=Frequency(1, FrequencyUnit.WEEK),
             since=date.today() - timedelta(days=365),
         )
     )
@@ -191,6 +191,18 @@ def test_read_write() -> None:
     """
     Test read/write functions
     """
+    if not STATS_CSV_PATH.exists():
+        # Create a CSV file for testing using the git repository
+        # holding the git version control system itself.
+        # To refresh this file, just delete tests/stats.csv and run this test.
+        write_stats(
+            iter_stats(
+                urls="https://github.com/git/git.git",
+                frequency=Frequency(1, FrequencyUnit.WEEK),
+                since=date.today() - timedelta(days=30),
+            ),
+            STATS_CSV_PATH,
+        )
     stats: Iterable[Stats] = read_stats(STATS_CSV_PATH)
     if STATS_TSV_PATH.exists():
         tsv_contents: str
