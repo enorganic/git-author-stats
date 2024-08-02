@@ -21,6 +21,36 @@ in a format suitable for use with tools such as [polars](https://pola.rs/),
 [pandas](https://pandas.pydata.org/), and
 [pyspark](https://spark.apache.org/docs/latest/api/python).
 
+All stats obtained from this package will be unique when grouped by
+url + commit + author_name + file, and include the following fields:
+
+- url (str): The URL of the repository (provided because stats for multiple
+  repositories can be obtained with one function call or command)
+- since (date|None): The start date for a pre-defined time period
+  as determined by frequency and time range parameters provided by the user
+- before (date|None): The (non-inclusive) end date for a pre-defined time
+  period as determined by frequency and time range parameters provided by the
+  user
+- author_date (datetime.datetime|None): The date and time of the author's
+  commit
+- author_name (str): The name of the author
+- commit (str): The abbreviated commit hash
+- file (str): The relative path of the modified file
+- insertions (int): The number of lines inserted in this commit
+  (please note that this is always 0 for binary files)
+- deletions (int): The number of lines deleted in this commit
+  (please note that this is always 0 for binary files)
+
+Please note that:
+
+- The fields `since` and `before` are provided as a convenience for easy
+  aggregation of stats, based on parameters provided by the user,
+  but do not provide any additional information about the commit or file
+- All dates and times are expressed in coordinated universal time (UTC),
+  as timezone-unaware `datetime.datetime` or `datetime.date` objects in
+  python, and output in ISO 8601 format when written to CSV/TSV files and/or
+  console output
+
 ## Installation
 
 You can install `git-author-stats` with pip:
@@ -49,53 +79,50 @@ for subsequent analysis.
 ```console
 $ git-author-stats -h
 usage: git-author-stats [-h] [-b BRANCH] [-u USER] [-p PASSWORD]
-                        [--since SINCE] [--after AFTER] [--before BEFORE]
-                        [--until UNTIL] [-f FREQUENCY]
-                        [--delimiter DELIMITER] [-nh] [-md]
-                        [-rea REGULAR_EXPRESSION ALIAS]
-                        [-e]
+                        [--since SINCE] [--after AFTER]
+                        [--before BEFORE] [--until UNTIL]
+                        [-f FREQUENCY] [--delimiter DELIMITER] [-nh]
+                        [-nm] [-md]
                         url [url ...]
 
-Print author stats for a Github organization or Git repository in the format
-of a Markdown table or CSV/TSV.
+Print author stats for a Github organization or Git repository in
+CSV/TSV or markdown format
 
 positional arguments:
   url                   Repository URL(s)
 
 optional arguments:
   -h, --help            show this help message and exit
-  -b BRANCH, --branch BRANCH
-                        Retrieve files from BRANCH instead of the remote's
-                        HEAD
   -u USER, --user USER  A username for accessing the repository
   -p PASSWORD, --password PASSWORD
                         A password for accessing the repository
-  --since SINCE         Only include contributions on or after this date
+  --since SINCE         Only include contributions on or after this
+                        date
   --after AFTER         Only include contributions after this date
   --before BEFORE       Only include contributions before this date
-  --until UNTIL         Only include contributions on or before this date
+  --until UNTIL         Only include contributions on or before this
+                        date
   -f FREQUENCY, --frequency FREQUENCY
-                        If provided, stats will be broken down over time
-                        intervals at the specified frequency. The frequency
-                        should be composed of an integer and unit of time
-                        (day, week, month, or year). For example, all of the
-                        following are valid: "1 week", "1w", "2 weeks",
-                        "2weeks", "4 months", or "4m".
+                        If provided, stats will be broken down over
+                        time intervals at the specified frequency. The
+                        frequency should be composed of an integer and
+                        unit of time (day, week, month, or year). For
+                        example, all of the following are valid: "1
+                        week", "1w", "2 weeks", "2weeks", "4 months",
+                        or "4m".
   --delimiter DELIMITER
-                        The delimiter to use for CSV/TSV output (default:
-                        ',')
-  -nh, --no-header      Don't print the header row (only applies to CSV/TSV
-                        output)
+                        The delimiter to use for CSV/TSV output
+                        (default: ',')
+  -nh, --no-header      Don't print the header row (only applies to
+                        CSV/TSV output)
+  -nm, --no-mailmap     Don't use mailmap to map author names to email
+                        addresses
   -md, --markdown       Output a markdown table instead of CSV/TSV
-  -rea REGULAR_EXPRESSION ALIAS, --regular-expression-alias REGULAR_EXPRESSION ALIAS
-                        A regular expression and alias to use when an author
-                        name matches the provided regular expression
-  -e, --email           Include author email addresses in the output
 ```
 
 #### CLI Examples
 
-Save stats for your Github org as a CSV, authenticating using a
+Save weekly stats for your Github org as a CSV, authenticating using a
 [personal access token](https://bit.ly/46mVout):
 
 ```bash
@@ -103,132 +130,82 @@ git-author-stats --since 2024-01-01 --frequency 1w --password $GH_TOKEN \
 https://github.com/enorganic > ./enorganic-author-stats.csv
 ```
 
-Save stats for a Github org as a TSV (public repos only):
+Save weekly stats for a Github org as a TSV (public repos only):
 
 ```bash
 git-author-stats --since 2024-01-01 --frequency 1w \
 --delimiter "\t" https://github.com/enorganic > ./enorganic-author-stats.tsv
 ```
 
-Print stats for a repo as a markdown table:
+Print daily stats for a repo from July 29th - August 1st, as a markdown table:
 
 ```bash
-git-author-stats \
--md --since 2024-01-01 -f 1w \
+git-author-stats -md \
+--since 2024-07-29 \
+--until 2024-08-01 \
+-f 1d \
 https://github.com/enorganic/git-author-stats.git
 ```
 
-| url                                               | author       | since      | before     | insertions | deletions | file                             |
-| ------------------------------------------------- | ------------ | ---------- | ---------- | ---------- | --------- | -------------------------------- |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 7          | 0         | .flake8                          |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 40         | 0         | .github/workflows/distribute.yml |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 41         | 0         | .github/workflows/test.yml       |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 17         | 0         | .gitignore                       |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 47         | 0         | CONTRIBUTING.md                  |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 74         | 0         | Makefile                         |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 10         | 0         | git_author_stats/__init__.py     |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 45         | 0         | git_author_stats/__main__.py     |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 47         | 0         | git_author_stats/_github.py      |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 619        | 0         | git_author_stats/_stats.py       |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 0          | 0         | git_author_stats/py.typed        |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 5          | 0         | mypy.ini                         |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 28         | 0         | pyproject.toml                   |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 52         | 0         | requirements.txt                 |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 27         | 0         | setup.cfg                        |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 3          | 0         | setup.py                         |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 66         | 0         | stats.ipynb                      |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 4          | 0         | temp.sh                          |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 13         | 0         | tests/test_github.py             |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 140        | 0         | tests/test_stats.py              |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 36         | 0         | tox.ini                          |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-04-29 | 2024-05-06 | 24         | 0         | README.md                        |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 99         | 10        | tests/test_github.py             |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 77         | 62        | tests/test_stats.py              |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 24         | 18        | .github/workflows/test.yml       |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 28         | 15        | Makefile                         |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 224        | 202       | git_author_stats/_stats.py       |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 3          | 0         | pyproject.toml                   |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 29         | 9         | tox.ini                          |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 3          | 1         | dev_requirements.txt             |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 38         | 7         | stats.ipynb                      |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 29         | 29        | tests/test_cli.py                |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 2          | 0         | ci_requirements.txt              |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 7          | 1         | git_author_stats/_github.py      |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 123        | 109       | requirements.txt                 |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 8          | 0         | test_requirements.txt            |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 78         | 1         | README.md                        |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 141        | 8         | git_author_stats/__main__.py     |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 3          | 3         | setup.cfg                        |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 15         | 6         | CONTRIBUTING.md                  |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-22 | 2024-07-29 | 0          | 4         | temp.sh                          |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 142        | 34        | README.md                        |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 119        | 216       | stats.ipynb                      |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 5          | 5         | tox.ini                          |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 33         | 12        | git_author_stats/_stats.py       |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 1          | 4         | pyproject.toml                   |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 99         | 34        | tests/test_github.py             |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 42         | 31        | tests/test_stats.py              |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 1          | 0         | requirements.txt                 |
-| https://github.com/enorganic/git-author-stats.git | David Belais | 2024-07-29 | 2024-07-31 | 1          | 0         | test_requirements.txt            |
-
-Print stats for a repo as a markdown table, using an author alias:
-
-```bash
-git-author-stats \
--md --since 2024-01-01 -f 1w \
--rea '^David\s+Belais\b.*' Dave \
-https://github.com/enorganic/git-author-stats.git
-```
-
-| url                                               | author | since      | before     | insertions | deletions | file                             |
-| ------------------------------------------------- | ------ | ---------- | ---------- | ---------- | --------- | -------------------------------- |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 7          | 0         | .flake8                          |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 40         | 0         | .github/workflows/distribute.yml |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 41         | 0         | .github/workflows/test.yml       |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 17         | 0         | .gitignore                       |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 47         | 0         | CONTRIBUTING.md                  |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 74         | 0         | Makefile                         |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 10         | 0         | git_author_stats/__init__.py     |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 45         | 0         | git_author_stats/__main__.py     |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 47         | 0         | git_author_stats/_github.py      |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 619        | 0         | git_author_stats/_stats.py       |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 0          | 0         | git_author_stats/py.typed        |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 5          | 0         | mypy.ini                         |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 28         | 0         | pyproject.toml                   |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 52         | 0         | requirements.txt                 |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 27         | 0         | setup.cfg                        |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 3          | 0         | setup.py                         |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 66         | 0         | stats.ipynb                      |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 4          | 0         | temp.sh                          |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 13         | 0         | tests/test_github.py             |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 140        | 0         | tests/test_stats.py              |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 36         | 0         | tox.ini                          |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-04-29 | 2024-05-06 | 24         | 0         | README.md                        |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 99         | 10        | tests/test_github.py             |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 77         | 62        | tests/test_stats.py              |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 24         | 18        | .github/workflows/test.yml       |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 28         | 15        | Makefile                         |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 224        | 202       | git_author_stats/_stats.py       |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 3          | 0         | pyproject.toml                   |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 29         | 9         | tox.ini                          |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 3          | 1         | dev_requirements.txt             |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 38         | 7         | stats.ipynb                      |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 29         | 29        | tests/test_cli.py                |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 2          | 0         | ci_requirements.txt              |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 7          | 1         | git_author_stats/_github.py      |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 123        | 109       | requirements.txt                 |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 8          | 0         | test_requirements.txt            |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 78         | 1         | README.md                        |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 141        | 8         | git_author_stats/__main__.py     |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 3          | 3         | setup.cfg                        |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 15         | 6         | CONTRIBUTING.md                  |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-22 | 2024-07-29 | 0          | 4         | temp.sh                          |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 142        | 34        | README.md                        |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 119        | 216       | stats.ipynb                      |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 5          | 5         | tox.ini                          |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 33         | 12        | git_author_stats/_stats.py       |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 1          | 4         | pyproject.toml                   |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 99         | 34        | tests/test_github.py             |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 42         | 31        | tests/test_stats.py              |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 1          | 0         | requirements.txt                 |
-| https://github.com/enorganic/git-author-stats.git | Dave   | 2024-07-29 | 2024-07-31 | 1          | 0         | test_requirements.txt            |
+| url                                               | since      | before     | author_date         | author_name  | commit  | file                             | insertions | deletions |
+| ------------------------------------------------- | ---------- | ---------- | ------------------- | ------------ | ------- | -------------------------------- | ---------- | --------- |
+| https://github.com/enorganic/git-author-stats.git | 2024-08-01 | 2024-08-02 | 2024-08-01T01:03:41 | David Belais | 7bd7967 | git_author_stats/_stats.py       | 1          | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-08-01 | 2024-08-02 | 2024-08-01T00:14:20 | David Belais | f3e837d | git_author_stats/_stats.py       | 0          | 3         |
+| https://github.com/enorganic/git-author-stats.git | 2024-08-01 | 2024-08-02 | 2024-08-01T00:06:21 | David Belais | 26a2afa | README.md                        | 5          | 6         |
+| https://github.com/enorganic/git-author-stats.git | 2024-08-01 | 2024-08-02 | 2024-08-01T00:01:00 | David Belais | 7461720 | git_author_stats/_stats.py       | 1          | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:58:25 | David Belais | 5ffa426 | git_author_stats/_stats.py       | 13         | 33        |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:42:22 | David Belais | 8562114 | tests/test_stats.py              | 2          | 2         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:06:50 | David Belais | 4974f42 | git_author_stats/__init__.py     | 9          | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:06:50 | David Belais | 4974f42 | git_author_stats/__main__.py     | 15         | 13        |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:06:50 | David Belais | 4974f42 | git_author_stats/_stats.py       | 120        | 52        |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:06:50 | David Belais | 4974f42 | setup.cfg                        | 1          | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:06:50 | David Belais | 4974f42 | tests/stats.csv                  | 58983      | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:06:50 | David Belais | 4974f42 | tests/stats.md                   | 58984      | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:06:50 | David Belais | 4974f42 | tests/stats.tsv                  | 58983      | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T23:06:50 | David Belais | 4974f42 | tests/test_stats.py              | 56         | 2         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T06:47:19 | David Belais | b4a0b5f | git_author_stats/_stats.py       | 14         | 8         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T06:41:06 | David Belais | 99f59fd | git_author_stats/__init__.py     | 2          | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T06:41:06 | David Belais | 99f59fd | git_author_stats/__main__.py     | 7          | 90        |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T06:41:06 | David Belais | 99f59fd | git_author_stats/_stats.py       | 140        | 2         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T06:41:06 | David Belais | 99f59fd | requirements.txt                 | 3          | 3         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-31 | 2024-08-01 | 2024-07-31T06:41:06 | David Belais | 99f59fd | setup.cfg                        | 1          | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T22:08:36 | David Belais | c42d567 | README.md                        | 9          | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T21:52:43 | David Belais | e37df00 | git_author_stats/_stats.py       | 3          | 3         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T21:50:34 | David Belais | b06f78b | git_author_stats/_stats.py       | 4          | 6         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T21:16:44 | David Belais | 2e16532 | README.md                        | 140        | 150       |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T21:16:44 | David Belais | 2e16532 | enorganic-author-stats.csv       | 0          | 451       |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T21:16:44 | David Belais | 2e16532 | git_author_stats/__main__.py     | 33         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T21:16:44 | David Belais | 2e16532 | git_author_stats/_stats.py       | 108        | 13        |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T18:45:33 | David Belais | 2aea5ab | setup.cfg                        | 1          | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T18:43:17 | David Belais | cade4a3 | enorganic-author-stats.csv       | 451        | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T18:39:58 | David Belais | 5e99fe6 | README.md                        | 53         | 27        |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T18:39:58 | David Belais | 5e99fe6 | git_author_stats/__main__.py     | 36         | 18        |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T18:39:58 | David Belais | 5e99fe6 | tests/test_github.py             | 22         | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T18:39:58 | David Belais | 5e99fe6 | tests/test_stats.py              | 20         | 1         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:55:31 | David Belais | b52106f | README.md                        | 3          | 2         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:46:42 | David Belais | 620dcdf | README.md                        | 142        | 34        |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:23:39 | David Belais | 282b807 | stats.ipynb                      | 0          | 177       |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | .flake8                          | 7          | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | .github/workflows/distribute.yml | 40         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | .github/workflows/test.yml       | 47         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | .gitignore                       | 17         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | CONTRIBUTING.md                  | 56         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | Makefile                         | 87         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | README.md                        | 101        | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | ci_requirements.txt              | 2          | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | dev_requirements.txt             | 2          | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | git_author_stats/__init__.py     | 10         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | git_author_stats/__main__.py     | 178        | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | git_author_stats/_github.py      | 53         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | git_author_stats/_stats.py       | 662        | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | git_author_stats/py.typed        | 0          | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | mypy.ini                         | 5          | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | pyproject.toml                   | 28         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | requirements.txt                 | 67         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | setup.cfg                        | 27         | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | setup.py                         | 3          | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | stats.ipynb                      | 177        | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | test_requirements.txt            | 9          | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | tests/test_github.py             | 167        | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | tests/test_stats.py              | 166        | 0         |
+| https://github.com/enorganic/git-author-stats.git | 2024-07-30 | 2024-07-31 | 2024-07-30T04:17:29 | David Belais | 259e788 | tox.ini                          | 56         | 0         |

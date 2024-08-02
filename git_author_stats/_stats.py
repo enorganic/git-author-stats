@@ -2,14 +2,21 @@ import csv
 import os
 import re
 import shutil
-import unicodedata
 from copy import copy
 from dataclasses import Field, dataclass, fields
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from enum import Enum
+from io import BytesIO
 from operator import itemgetter
 from pathlib import Path
-from subprocess import DEVNULL, PIPE, CalledProcessError, list2cmdline, run
+from subprocess import (
+    DEVNULL,
+    PIPE,
+    CalledProcessError,
+    Popen,
+    list2cmdline,
+    run,
+)
 from tempfile import mkdtemp
 from typing import (
     Any,
@@ -17,10 +24,7 @@ from typing import (
     Dict,
     Iterable,
     List,
-    Mapping,
-    MutableMapping,
     Optional,
-    Set,
     TextIO,
     Tuple,
     Union,
@@ -71,12 +75,73 @@ def check_output(
     return output
 
 
-def get_iso_date(datetime_string: str) -> Optional[date]:
-    return (
-        datetime.fromisoformat(datetime_string.strip().rstrip("Z")).date()
-        if datetime_string
-        else None
+def iter_output(
+    args: Tuple[str, ...],
+    cwd: Union[str, Path] = "",
+    echo: bool = False,
+) -> Iterable[str]:
+    """
+    This function runs a command in a subprocess, redirecting stderr
+    to DEVNULL, ignoring unicode decoding errors, and yields lines returned
+    from the subprocess as they are received.
+
+    Parameters:
+
+    - args (Tuple[str, ...]): The command to run
+    - cwd (str|pathlib.Path) = "": The working directory in which to run the
+      command
+    """
+    if echo:
+        if cwd:
+            print("$", "cd", cwd, "&&", list2cmdline(args))
+        else:
+            print("$", list2cmdline(args))
+    process: Popen = Popen(
+        args,
+        stdout=PIPE,
+        stderr=DEVNULL,
+        cwd=cwd or None,
     )
+    try:
+        bline: bytes
+        for bline in iter(cast(BytesIO, process.stdout).readline, b""):
+            line: str = bline.decode("utf-8", errors="ignore").rstrip("\n")
+            if echo:
+                print(line)
+            yield line
+        return_code: int = process.wait()
+        if return_code:
+            raise CalledProcessError(return_code, args)
+    except Exception:
+        process.kill()
+        raise
+
+
+def get_iso_datetime(datetime_string: str) -> Optional[datetime]:
+    """
+    Get a date and time from an ISO 8601 formatted string, or `None` if
+    the string is empty.
+    """
+    if not datetime_string:
+        return None
+    date_time: datetime = datetime.fromisoformat(
+        datetime_string.strip().rstrip("Z")
+    )
+    # Convert to UTC if the date time has a timezone
+    if date_time.tzinfo is not None:
+        date_time = date_time.astimezone(timezone.utc).replace(tzinfo=None)
+    return date_time
+
+
+def get_iso_date(datetime_string: str) -> Optional[date]:
+    """
+    Get a date from an ISO 8601 formatted string, or `None` if
+    the string is empty.
+    """
+    if not datetime_string:
+        return None
+    iso_datetime: datetime = cast(datetime, get_iso_datetime(datetime_string))
+    return iso_datetime.date()
 
 
 def update_url_user_password(
@@ -206,6 +271,9 @@ def iter_clone(
                 )
                 if path:
                     yield repository_url, path
+        elif os.path.isdir(url):
+            # If this is a local directory, there is no need to clone it
+            yield url, url
         else:
             path = clone(url, user=user, password=password, since=since)
             if path:
@@ -265,157 +333,6 @@ def clone(
         shutil.rmtree(temp_directory)
         raise error
     return temp_directory
-
-
-def normalize_author(author: str) -> str:
-    """
-    Normalize an author name.
-    """
-    return unicodedata.normalize("NFKD", author).strip().capitalize()
-
-
-def iter_local_repo_author_names(
-    path: Union[str, Path] = "",
-    email: bool = False,
-) -> Iterable[str]:
-    # Only look for authors if there is at least one commit
-    if int(
-        check_output(
-            (GIT, "rev-list", "--all", "--count"),
-            cwd=path,
-        ).strip()
-    ):
-        line: str
-        output: str = check_output(
-            (GIT, "--no-pager", "log"),
-            cwd=path,
-        )
-        names: Set[str] = set()
-        for line in filter(
-            None,
-            output.strip().split("\n"),
-        ):
-            if line.startswith("Author:"):
-                name = line[7:].strip()
-                if not email:
-                    name = name.partition("<")[0].rstrip()
-                if name not in names:
-                    names.add(name)
-                    yield name
-
-
-def map_authors_names_normalized(names: Iterable[str]) -> Dict[str, str]:
-    """
-    Return a dictionary of author names, mapped to a normalized author name
-
-    Parameters:
-
-    - path (str): The path to the local repository
-    """
-    names_normalized: Dict[str, str] = {}
-    for name in names:
-        names_normalized[name] = normalize_author(name)
-    return names_normalized
-
-
-def is_new_name_better_formatted(old: str, new: str) -> int:
-    """
-    Is `new` a better formatted variation of the name than `old`?
-    """
-    if old == new:
-        return False
-    # Pick the longer name, if there is a difference, defaulting to `old`
-    # if they are the same length
-    if len(old) < len(new):
-        return True
-    # Pick the one which has casing variation
-    old_is_uncased: bool = old.isupper() or old.islower()
-    new_is_uncased: bool = new.isupper() or new.islower()
-    if old_is_uncased and not new_is_uncased:
-        return True
-    if new_is_uncased and not old_is_uncased:
-        return False
-    return False
-
-
-def map_authors_regular_expression_aliases(
-    names: Iterable[str],
-    regular_expression_aliases: Union[
-        Mapping[str, str],
-        Tuple[Tuple[str, str], ...],
-    ] = (),
-) -> Dict[str, str]:
-    patterns_aliases: MutableMapping[re.Pattern[str], str] = {}
-    if not isinstance(regular_expression_aliases, Mapping):
-        regular_expression_aliases = dict(regular_expression_aliases)
-    key: str
-    value: str
-    for key, value in regular_expression_aliases.items():
-        patterns_aliases[re.compile(key)] = value
-    pattern: re.Pattern[str]
-    names_aliases: Dict[str, str] = {}
-    for name in names:
-        for pattern, value in patterns_aliases.items():
-            if pattern.match(name):
-                names_aliases[name] = value
-                # Use the first matched alias for each name
-                break
-    return names_aliases
-
-
-def map_authors_aliases(
-    names: Iterable[str],
-    regular_expression_aliases: Union[
-        Mapping[str, str],
-        Tuple[Tuple[str, str], ...],
-    ] = (),
-    email: bool = False,
-) -> Dict[str, str]:
-    """
-    Return a dictionary mapping author names to the best formatted variation
-    of the author's name, or to an alias, if the name matches any of the
-    regular expressions in `regular_expression_aliases`.
-
-    Parameters:
-
-    - names ([str]): Commit author names
-    - regular_expression_aliases ({str: str}|((str, str),)): A mapping of
-      regular expressions to aliases
-    - email (bool) = False: Include email addresses in automatically
-      generated aliases
-    """
-    names_aliases: Dict[str, str] = map_authors_regular_expression_aliases(
-        names,
-        regular_expression_aliases,
-    )
-    names_normalized: Dict[str, str] = map_authors_names_normalized(names)
-    # Map a normalized name to the best formatted variation
-    normalized_best: Dict[str, str] = {}
-    name: str
-    name_normalized: str
-    for name, name_normalized in names_normalized.items():
-        if name_normalized not in normalized_best:
-            normalized_best[name_normalized] = name
-        else:
-            if is_new_name_better_formatted(
-                normalized_best[name_normalized], name
-            ):
-                normalized_best[name_normalized] = name
-    # Map all names to their best formatted variation
-    names_best: Dict[str, str] = {}
-    for name, name_normalized in names_normalized.items():
-        best_name: str = normalized_best[name_normalized]
-        # If the name has an alias, use the alias
-        if name in names_aliases:
-            best_name = names_aliases[name]
-        elif best_name in names_aliases:
-            best_name = names_aliases[best_name]
-        # Remove the email address if it's not wanted in our output
-        if not email:
-            best_name = best_name.partition("<")[0].rstrip()
-            name = name.partition("<")[0].rstrip()
-        names_best[name] = best_name
-    return names_best
 
 
 class FrequencyUnit(Enum):
@@ -480,43 +397,68 @@ def parse_frequency_string(frequency_string: str) -> Frequency:
 @dataclass
 class Stats:
     """
-    Inserted and deleted lines of code for an author, optionally in
-    a specific repository and/or during a specific time period.
+    This object represents metrics obtained from the output of
+    `git log --numstat`. Each record is unique when grouped by
+    url + commit + author_name + file. The fields `since` and `before`
+    are provided as a convenience for easy aggregation of stats, but do not
+    provide any additional information about the commit or file.
+
+    Properties:
+
+    - url (str): The URL of the repository
+    - since (date|None): The start date for a pre-defined time period by which
+      these metrics will be analyzed
+    - before (date|None): The end date (non-inclusive) for a pre-defined time
+      period by which these metrics will be analyzed
+    - author_date (datetime|None): The date and time of the author's commit
+    - author_name (str): The name of the author
+    - commit (str): The abbreviated commit hash
+    - file (str): The file path
+    - insertions (int): The number of lines inserted in this commit
+    - deletions (int): The number of lines deleted in this commit
     """
 
     url: str = ""
-    author: str = ""
     since: Optional[date] = None
     before: Optional[date] = None
+    author_date: Optional[datetime] = None
+    author_name: str = ""
+    commit: str = ""
+    file: str = ""
     insertions: int = 0
     deletions: int = 0
-    file: str = ""
 
     def __init__(
         self,
         url: str = "",
-        author: str = "",
         since: Union[date, str, None] = None,
         before: Union[date, str, None] = None,
+        author_date: Union[datetime, str, None] = None,
+        author_name: str = "",
+        commit: str = "",
+        file: str = "",
         insertions: Union[int, str] = 0,
         deletions: Union[int, str] = 0,
-        file: str = "",
     ) -> None:
         if isinstance(since, str):
             since = get_iso_date(since)
         if isinstance(before, str):
             before = get_iso_date(before)
+        if isinstance(author_date, str):
+            author_date = get_iso_datetime(author_date)
         if isinstance(insertions, str):
             insertions = int(insertions)
         if isinstance(deletions, str):
             deletions = int(deletions)
         self.url: str = url
-        self.author: str = author
         self.since: date = since
         self.before: date = before
+        self.author_date: datetime = author_date
+        self.author_name: str = author_name
+        self.commit: str = commit
+        self.file: str = file
         self.insertions: int = insertions
         self.deletions: int = deletions
-        self.file: str = file
 
 
 _STATS_PATTERN: re.Pattern = re.compile(
@@ -539,46 +481,72 @@ def get_first_author_date(path: Union[str, Path] = "") -> date:
 
 def iter_local_repo_stats(
     path: str,
-    author: str,
+    author: str = "",
     since: Optional[date] = None,
     before: Optional[date] = None,
+    no_mailmap: bool = True,
 ) -> Iterable[Stats]:
+    """
+    Yield stats for a local repository, optionally for a specific author
+    and/or date range
+    """
     line: str
     command: Tuple[str, ...] = (
         GIT,
         "--no-pager",
         "log",
-        "--author",
-        author,
-        "--format=tformat:",
         "--numstat",
+        "--date=iso-strict",
+        ("--format=tformat:" "commit:%h%nauthor_name:%an%nauthor_date:%ad"),
     )
+    if no_mailmap:
+        command += ("--no-mailmap",)
+    else:
+        command += ("--mailmap",)
+    if author:
+        command += ("--author", author)
     if since is not None:
         command += ("--since", since.isoformat())
     if before is not None:
         command += ("--before", before.isoformat())
-    file_stats: Dict[str, Stats] = {}
-    for line in filter(
-        None,
-        map(str.strip, check_output(command, cwd=path).strip().split("\n")),
+    commit: str = ""
+    author_name: str = ""
+    author_date: str = ""
+    for line in (
+        filter(
+            None,
+            map(str.strip, iter_output(command, cwd=path)),
+        )
+        if int(  # Only look for stats if there is at least one commit
+            check_output(
+                (GIT, "rev-list", "--all", "--count"),
+                cwd=path,
+            ).strip()
+        )
+        else ()
     ):
+        if line.startswith("commit:"):
+            commit = line[7:]
+            continue
+        if line.startswith("author_name:"):
+            author_name = line[12:]
+            continue
+        if line.startswith("author_date:"):
+            author_date = line[12:]
+            continue
         matched: Optional[re.Match] = _STATS_PATTERN.match(line)
         if not matched:
             raise ValueError(line)
-        stats: Stats = Stats(
-            author=author,
+        yield Stats(
             since=since,
             before=before,
+            author_date=author_date,
+            author_name=author_name,
+            commit=commit,
+            file=matched.group(3),
             insertions=int(matched.group(1).rstrip("-") or 0),
             deletions=int(matched.group(2).rstrip("-") or 0),
-            file=matched.group(3),
         )
-        if stats.file in file_stats:
-            file_stats[stats.file].insertions += stats.insertions
-            file_stats[stats.file].deletions += stats.deletions
-        else:
-            file_stats[stats.file] = stats
-    yield from file_stats.values()
 
 
 def increment_date_by_frequency(today: date, frequency: Frequency) -> date:
@@ -608,13 +576,39 @@ def increment_date_by_frequency(today: date, frequency: Frequency) -> date:
     raise ValueError((today, frequency))
 
 
+def get_date_range(
+    since: Optional[date] = None,
+    after: Optional[date] = None,
+    before: Optional[date] = None,
+    until: Optional[date] = None,
+) -> Tuple[date, date]:
+    """
+    Get a since/before date range
+    """
+    if after is not None:
+        if since is not None:
+            since = max(since, after + timedelta(days=1))
+        else:
+            since = after + timedelta(days=1)
+    if until is not None:
+        if before is not None:
+            before = min(before, until + timedelta(days=1))
+        else:
+            before = until + timedelta(days=1)
+    if since is None:
+        raise ValueError((since, after, before, until))
+    if not before:
+        before = date.today() + timedelta(days=1)
+    return since, before
+
+
 def iter_date_ranges(
-    since: date,
+    since: Optional[date] = None,
     after: Optional[date] = None,
     before: Optional[date] = None,
     until: Optional[date] = None,
     frequency: Union[Frequency, str, None] = None,
-) -> Iterable[Tuple[Optional[date], Optional[date]]]:
+) -> Iterable[Tuple[date, date]]:
     """
     Iterate over all date ranges for the specified time period
 
@@ -631,24 +625,12 @@ def iter_date_ranges(
     - frequency (str|Frequency|None) = None: A frequency of time. If not
       provided, only one date range will be yielded.
     """
-    if after is not None:
-        if since:
-            since = max(since, after + timedelta(days=1))
-        else:
-            since = after + timedelta(days=1)
-    if until is not None:
-        if before:
-            before = min(before, until + timedelta(days=1))
-        else:
-            before = until + timedelta(days=1)
+    since, before = get_date_range(since, after, before, until)
     if frequency is None:
         yield since, before
         return
     if isinstance(frequency, str):
         frequency = parse_frequency_string(frequency)
-    if not before:
-        before = date.today() + timedelta(days=1)
-    assert since < before
     increment_frequency: Frequency
     period_since: date = since
     period_before: date = increment_date_by_frequency(since, frequency)
@@ -668,7 +650,42 @@ def iter_date_ranges(
         period_before = new_period_before
 
 
-def iter_stats(  # noqa: C901
+def _iter_date_range_map(
+    frequency: Union[str, Frequency],
+    since: Optional[date] = None,
+    after: Optional[date] = None,
+    before: Optional[date] = None,
+    until: Optional[date] = None,
+) -> Iterable[Tuple[date, Tuple[date, date]]]:
+    period_since: date
+    period_before: date
+    for period_since, period_before in iter_date_ranges(
+        since=since,
+        after=after,
+        before=before,
+        until=until,
+        frequency=frequency,
+    ):
+        day: date = period_since
+        while day < period_before:
+            yield day, (period_since, period_before)
+            day += timedelta(days=1)
+
+
+def get_date_range_map(
+    frequency: Union[str, Frequency],
+    since: Optional[date] = None,
+    after: Optional[date] = None,
+    before: Optional[date] = None,
+    until: Optional[date] = None,
+) -> Dict[date, Tuple[date, date]]:
+    """
+    Get dictionary mapping dates to date ranges
+    """
+    return dict(_iter_date_range_map(frequency, since, after, before, until))
+
+
+def iter_stats(
     urls: Union[str, Iterable[str]],
     user: str = "",
     password: str = "",
@@ -677,10 +694,7 @@ def iter_stats(  # noqa: C901
     before: Optional[date] = None,
     until: Optional[date] = None,
     frequency: Union[str, Frequency, None] = None,
-    regular_expression_aliases: Union[
-        Mapping[str, str], Tuple[Tuple[str, str], ...]
-    ] = (),
-    email: bool = False,
+    no_mailmap: bool = False,
 ) -> Iterable[Stats]:
     """
     Yield stats for all specified repositories, by author, for the specified
@@ -700,74 +714,46 @@ def iter_stats(  # noqa: C901
       broken down by the specified frequency. For example, if `frequency` is
       "1 week", stats will be yielded for each week in the specified time,
       starting with `since` and ending with `before` (if provided).
-    - regular_expression_aliases (((str, str),)) = ():
+    - no_mailmap (bool) = False: If `True`, do not use the mailmap file
     """
     if isinstance(frequency, str):
         frequency = parse_frequency_string(frequency)
-    urls_paths: Tuple[Tuple[str, str], ...] = tuple(
-        iter_clone(urls, user, password, since=since)
+    urls_paths: Iterable[Tuple[str, str]] = iter_clone(
+        urls, user, password, since=since
     )
     url: str
     path: str
-    # Author names by path
-    paths_authors: Dict[str, Tuple[str, ...]] = {}
-    # All author names
-    author_names: Tuple[str, ...]
-    all_author_names_emails: Set[str] = set()
-    first_author_date: Optional[date] = None
-    for path in map(itemgetter(1), urls_paths):
-        if since is None:
-            if first_author_date is None:
-                first_author_date = get_first_author_date(path)
-            else:
-                first_author_date = min(
-                    get_first_author_date(path), first_author_date
-                )
-        author_names = tuple(iter_local_repo_author_names(path, email))
-        paths_authors[path] = author_names
-        # The author names used for mapping aliases needs to include email
-        # addresses
-        all_author_names_emails |= (
-            set(author_names)
-            if email
-            else set(iter_local_repo_author_names(path, email=True))
-        )
     if since is None:
-        since = first_author_date
+        urls_paths = tuple(urls_paths)
+        for path in map(itemgetter(1), urls_paths):
+            if since is None:
+                since = get_first_author_date(path)
+            else:
+                since = min(get_first_author_date(path), since)
+    assert since is not None
     if before is None:
         before = date.today() + timedelta(days=1)
-    assert since and before and since < before
-    # Get a mapping of author names to the best formatted variation of the
-    # author's name
-    authors_aliases: Dict[str, str] = map_authors_aliases(
-        all_author_names_emails,
-        regular_expression_aliases,
-        email=email,
-    )
+    since, before = get_date_range(since, after, before, until)
+    date_range_map: Dict[date, Tuple[date, date]] = {}
+    if frequency is not None:
+        date_range_map = get_date_range_map(
+            frequency, since=since, before=before
+        )
     # Yield stats for each author, for each repository, for each time period
     for url, path in urls_paths:
-        author_names = paths_authors[path]
-        author_name: str
-        for author_name in author_names:
-            period_since: Optional[date]
-            period_before: Optional[date]
-            for period_since, period_before in iter_date_ranges(
-                since=since,
-                after=after,
-                before=before,
-                until=until,
-                frequency=frequency,
-            ):
-                stats: Stats
-                for stats in iter_local_repo_stats(
-                    path,
-                    author=author_name,
-                    since=period_since,
-                    before=period_before,
-                ):
-                    stats.url = url
-                    stats.author = authors_aliases[stats.author]
-                    yield stats
+        stats: Stats
+        for stats in iter_local_repo_stats(
+            path,
+            since=since,
+            before=before,
+            no_mailmap=no_mailmap,
+        ):
+            stats.url = url
+            if (frequency is not None) and (stats.author_date is not None):
+                stats.since, stats.before = date_range_map.get(
+                    stats.author_date.date(), (None, None)
+                )
+            yield stats
 
 
 def get_string_value(value: Union[str, date, float, int, None]) -> str:

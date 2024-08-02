@@ -21,16 +21,9 @@ def main() -> None:
         prog="git-author-stats",
         description=(
             "Print author stats for a Github organization or Git "
-            "repository in the format of a Markdown table or CSV/TSV."
+            "repository in CSV/TSV or markdown format"
         ),
         formatter_class=_HelpFormatter,
-    )
-    parser.add_argument(
-        "-b",
-        "--branch",
-        default="",
-        type=str,
-        help="Retrieve files from BRANCH instead of the remote's HEAD",
     )
     parser.add_argument(
         "-u",
@@ -96,27 +89,16 @@ def main() -> None:
         help="Don't print the header row (only applies to CSV/TSV output)",
     )
     parser.add_argument(
+        "-nm",
+        "--no-mailmap",
+        action="store_true",
+        help="Don't use mailmap to map author names to email addresses",
+    )
+    parser.add_argument(
         "-md",
         "--markdown",
         action="store_true",
         help="Output a markdown table instead of CSV/TSV",
-    )
-    parser.add_argument(
-        "-rea",
-        "--regular-expression-alias",
-        default=[],
-        action="append",
-        nargs=2,
-        help=(
-            "A regular expression and alias to use when an author "
-            "name matches the provided regular expression"
-        ),
-    )
-    parser.add_argument(
-        "-e",
-        "--email",
-        action="store_true",
-        help="Include author email addresses in the output",
     )
     parser.add_argument("url", type=str, nargs="+", help="Repository URL(s)")
     namespace: argparse.Namespace = parser.parse_args()
@@ -132,10 +114,7 @@ def main() -> None:
                 before=get_iso_date(namespace.before),
                 until=get_iso_date(namespace.until),
                 frequency=namespace.frequency,
-                regular_expression_aliases=tuple(
-                    namespace.regular_expression_alias
-                ),
-                email=namespace.email,
+                no_mailmap=namespace.no_mailmap,
             ),
             file=sys.stdout,
             delimiter=namespace.delimiter,

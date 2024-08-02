@@ -12,6 +12,7 @@ from git_author_stats._stats import (
     Frequency,
     FrequencyUnit,
     Stats,
+    _get_stats_field_names,
     check_output,
     get_first_author_date,
     increment_date_by_frequency,
@@ -113,31 +114,16 @@ def test_iter_repo_stats() -> None:
     stats: Tuple[Stats, ...] = tuple(
         iter_stats(
             urls="https://github.com/enorganic/git-author-stats.git",
-            frequency=Frequency(2, FrequencyUnit.WEEK),
+            frequency=Frequency(1, FrequencyUnit.WEEK),
             since=date.today() - timedelta(days=365),
         )
     )
     assert stats
     pandas_data_frame: pandas.DataFrame = pandas.DataFrame(stats)
-    assert pandas_data_frame.columns.tolist() == [
-        "url",
-        "author",
-        "since",
-        "before",
-        "insertions",
-        "deletions",
-        "file",
-    ], stats
+    field_names: List[str] = list(_get_stats_field_names())
+    assert pandas_data_frame.columns.tolist() == field_names, stats
     polars_data_frame: polars.DataFrame = polars.DataFrame(stats)
-    assert polars_data_frame.columns == [
-        "url",
-        "author",
-        "since",
-        "before",
-        "insertions",
-        "deletions",
-        "file",
-    ], stats
+    assert polars_data_frame.columns == field_names, stats
 
 
 def test_get_first_author_date() -> None:
@@ -191,6 +177,18 @@ def test_read_write() -> None:
     """
     Test read/write functions
     """
+    if not STATS_CSV_PATH.exists():
+        # Create a CSV file for testing using the git repository
+        # holding the git version control system itself.
+        # To refresh this file, just delete tests/stats.csv and run this test.
+        write_stats(
+            iter_stats(
+                urls="https://github.com/git/git.git",
+                frequency=Frequency(1, FrequencyUnit.WEEK),
+                since=date.today() - timedelta(days=30),
+            ),
+            STATS_CSV_PATH,
+        )
     stats: Iterable[Stats] = read_stats(STATS_CSV_PATH)
     if STATS_TSV_PATH.exists():
         tsv_contents: str
