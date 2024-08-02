@@ -14,6 +14,7 @@ from git_author_stats._stats import (
     Frequency,
     FrequencyUnit,
     Stats,
+    _get_stats_field_names,
     check_output,
     iter_stats,
 )
@@ -85,26 +86,11 @@ def test_iter_repo_stats() -> None:
         )
     )
     assert stats
+    field_names: List[str] = list(_get_stats_field_names())
     pandas_data_frame: pandas.DataFrame = pandas.DataFrame(stats)
-    assert pandas_data_frame.columns.tolist() == [
-        "url",
-        "author",
-        "since",
-        "before",
-        "insertions",
-        "deletions",
-        "file",
-    ], stats
+    assert pandas_data_frame.columns.tolist() == field_names, stats
     polars_data_frame: polars.DataFrame = polars.DataFrame(stats)
-    assert polars_data_frame.columns == [
-        "url",
-        "author",
-        "since",
-        "before",
-        "insertions",
-        "deletions",
-        "file",
-    ], stats
+    assert polars_data_frame.columns == field_names, stats
 
 
 def test_cli_repo() -> None:
