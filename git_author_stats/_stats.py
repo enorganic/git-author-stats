@@ -509,10 +509,18 @@ def iter_local_repo_stats(
     commit: str = ""
     author_name: str = ""
     author_date: str = ""
-    for line in filter(
-        None,
-        map(str.strip, iter_output(command, cwd=path)),
-        # map(str.strip, check_output(command, cwd=path).strip().split("\n")),
+    for line in (
+        filter(
+            None,
+            map(str.strip, iter_output(command, cwd=path)),
+        )
+        if int(  # Only look for stats if there is at least one commit
+            check_output(
+                (GIT, "rev-list", "--all", "--count"),
+                cwd=path,
+            ).strip()
+        )
+        else ()
     ):
         if line.startswith("commit:"):
             commit = line[7:]
