@@ -127,7 +127,7 @@ def get_iso_datetime(datetime_string: str) -> Optional[datetime]:
     date_time: datetime = datetime.fromisoformat(
         datetime_string.strip().rstrip("Z")
     )
-    # Convert to UTC if the date time has a timezone
+    # Convert to UTC if the date/time has a timezone
     if date_time.tzinfo is not None:
         date_time = date_time.astimezone(timezone.utc).replace(tzinfo=None)
     return date_time
@@ -479,11 +479,22 @@ def get_first_author_date(path: Union[str, Path] = "") -> date:
     raise ValueError(output)
 
 
+def _get_datetime_str(now: Union[datetime, date]) -> str:
+    now_str: str = now.isoformat()
+    if isinstance(now, datetime):
+        now_str = now.isoformat()
+        if now.tzinfo is None:
+            now_str = f"{now_str}Z"
+    else:
+        now_str = f"{now.isoformat()}T00:00Z"
+    return now_str
+
+
 def iter_local_repo_stats(
     path: str,
     author: str = "",
-    since: Optional[date] = None,
-    before: Optional[date] = None,
+    since: Union[date, datetime, None] = None,
+    before: Union[date, datetime, None] = None,
     no_mailmap: bool = True,
 ) -> Iterable[Stats]:
     """
@@ -506,9 +517,9 @@ def iter_local_repo_stats(
     if author:
         command += ("--author", author)
     if since is not None:
-        command += ("--since", since.isoformat())
+        command += ("--since", _get_datetime_str(since))
     if before is not None:
-        command += ("--before", before.isoformat())
+        command += ("--before", _get_datetime_str(before))
     commit: str = ""
     author_name: str = ""
     author_date: str = ""
@@ -759,6 +770,8 @@ def iter_stats(
 def get_string_value(value: Union[str, date, float, int, None]) -> str:
     if isinstance(value, date):
         return value.isoformat()
+    elif value is None:
+        return ""
     return str(value)
 
 
