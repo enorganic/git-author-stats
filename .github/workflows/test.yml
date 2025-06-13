@@ -37,4 +37,7 @@ jobs:
     - name: Install Hatch
       uses: pypa/hatch@install
     - name: test
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        PYTHONUNBUFFERED: 1
       run: hatch test -c -py ${{ matrix.python }}
