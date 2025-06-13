@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import csv
 import os
 import re
 import shutil
-from collections.abc import Iterable
 from copy import copy
 from dataclasses import Field, dataclass, fields
 from datetime import date, datetime, timedelta, timezone
@@ -20,18 +21,17 @@ from subprocess import (
 )
 from tempfile import mkdtemp
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
-    Dict,
-    List,
-    Optional,
     TextIO,
-    Tuple,
-    Union,
     cast,
 )
 from urllib.parse import ParseResult, urlparse, urlunparse
 from urllib.parse import quote as _quote
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 cache: Callable[[Callable], Callable]
 try:
@@ -45,8 +45,9 @@ GIT: str = shutil.which("git") or "git"
 
 
 def check_output(
-    args: Tuple[str, ...],
-    cwd: Union[str, Path] = "",
+    args: tuple[str, ...],
+    cwd: str | Path = "",
+    *,
     echo: bool = False,
 ) -> str:
     """
@@ -59,9 +60,9 @@ def check_output(
     """
     if echo:
         if cwd:
-            print("$", "cd", cwd, "&&", list2cmdline(args))
+            print("$", "cd", cwd, "&&", list2cmdline(args))  # noqa: T201
         else:
-            print("$", list2cmdline(args))
+            print("$", list2cmdline(args))  # noqa: T201
     output: str = run(
         args,
         stdout=PIPE,
@@ -70,13 +71,14 @@ def check_output(
         cwd=cwd or None,
     ).stdout.decode("utf-8", errors="ignore")
     if echo:
-        print(output)
+        print(output)  # noqa: T201
     return output
 
 
 def iter_output(
-    args: Tuple[str, ...],
-    cwd: Union[str, Path] = "",
+    args: tuple[str, ...],
+    cwd: str | Path = "",
+    *,
     echo: bool = False,
 ) -> Iterable[str]:
     """
@@ -92,31 +94,32 @@ def iter_output(
     """
     if echo:
         if cwd:
-            print("$", "cd", cwd, "&&", list2cmdline(args))
+            print("$", "cd", cwd, "&&", list2cmdline(args))  # noqa: T201
         else:
-            print("$", list2cmdline(args))
+            print("$", list2cmdline(args))  # noqa: T201
     process: Popen = Popen(
         args,
         stdout=PIPE,
         stderr=DEVNULL,
         cwd=cwd or None,
     )
+    return_code: int | None = None
     try:
         bline: bytes
         for bline in iter(cast(BytesIO, process.stdout).readline, b""):
             line: str = bline.decode("utf-8", errors="ignore").rstrip("\n")
             if echo:
-                print(line)
+                print(line)  # noqa: T201
             yield line
-        return_code: int = process.wait()
-        if return_code:
-            raise CalledProcessError(return_code, args)
+        return_code = process.wait()
     except Exception:
         process.kill()
         raise
+    if return_code:
+        raise CalledProcessError(return_code, args)
 
 
-def get_iso_datetime(datetime_string: str) -> Optional[datetime]:
+def get_iso_datetime(datetime_string: str) -> datetime | None:
     """
     Get a date and time from an ISO 8601 formatted string, or `None` if
     the string is empty.
@@ -132,7 +135,7 @@ def get_iso_datetime(datetime_string: str) -> Optional[datetime]:
     return date_time
 
 
-def get_iso_date(datetime_string: str) -> Optional[date]:
+def get_iso_date(datetime_string: str) -> date | None:
     """
     Get a date from an ISO 8601 formatted string, or `None` if
     the string is empty.
@@ -160,7 +163,8 @@ def update_url_user_password(
     - quote = urllib.parse.quote: A function to use for escaping
       invalid character (defaults to `urllib.parse.quote`)
     """
-    assert url
+    if not url:
+        raise ValueError(url)
     if not (user or password):
         return url
     parse_result: ParseResult = urlparse(url)
@@ -194,8 +198,8 @@ def update_url_user_password(
             parse_result.fragment,
         )
     )
-    if password:
-        assert url != updated_url
+    if password and url == updated_url:
+        raise ValueError((url, user, password))
     return updated_url
 
 
@@ -224,21 +228,19 @@ def iter_github_organization_repository_urls(
     Yield the URLs of all repositories in a Github organization which
     are accessible to the specified user
     """
-    from ._github import iter_organization_repository_clone_urls
+    from git_author_stats._github import (
+        iter_organization_repository_clone_urls,
+    )
 
-    repository_url: str
-    for repository_url in iter_organization_repository_clone_urls(
-        url, user, password
-    ):
-        yield repository_url
+    yield from iter_organization_repository_clone_urls(url, user, password)
 
 
 def iter_clone(
-    urls: Union[str, Iterable[str]],
+    urls: str | Iterable[str],
     user: str = "",
     password: str = "",
-    since: Optional[date] = None,
-) -> Iterable[Tuple[str, str]]:
+    since: date | None = None,
+) -> Iterable[tuple[str, str]]:
     """
     Clone one or more Git repositories to temp directories and yield the
     paths of all temp directories created (one for each repository).
@@ -283,7 +285,7 @@ def clone(
     url: str,
     user: str = "",
     password: str = "",
-    since: Optional[date] = None,
+    since: date | None = None,
 ) -> str:
     """
     Clone a Git repository to a temp directory and return the path of the
@@ -300,8 +302,8 @@ def clone(
     url = update_url_user_password(url, user, password)
     # Clone into a temp directory
     temp_directory: str = mkdtemp()
-    os.chmod(temp_directory, 0o777)
-    command: Tuple[str, ...] = (
+    os.chmod(temp_directory, 0o777)  # noqa: S103
+    command: tuple[str, ...] = (
         GIT,
         "clone",
         "-q",
@@ -323,14 +325,14 @@ def clone(
                     # `rmtree` is just a cleanup operation
                     ignore_errors=True,
                 )
-            except Exception:
-                raise error
+            except Exception:  # noqa: BLE001
+                raise error from None
             # Cleanup the directory and return an empty string to indicate no
             # relevant commits were found
             shutil.rmtree(temp_directory)
             return ""
         shutil.rmtree(temp_directory)
-        raise error
+        raise
     return temp_directory
 
 
@@ -339,10 +341,10 @@ class FrequencyUnit(Enum):
     A unit of time.
     """
 
-    WEEK: str = "week"
-    MONTH: str = "month"
-    DAY: str = "day"
-    YEAR: str = "year"
+    WEEK = "week"
+    MONTH = "month"
+    DAY = "day"
+    YEAR = "year"
 
 
 @dataclass
@@ -378,7 +380,7 @@ def parse_frequency_string(frequency_string: str) -> Frequency:
     >>> parse_frequency_string("weeks")
     Frequency(quantity=1, unit=<FrequencyUnit.WEEK: 'week'>)
     """
-    matched: Optional[re.Match] = _FREQUENCY_PATTERN.match(frequency_string)
+    matched: re.Match | None = _FREQUENCY_PATTERN.match(frequency_string)
     if not matched:
         raise ValueError(frequency_string)
     unit: str = matched.group(2).lower()
@@ -418,9 +420,9 @@ class Stats:
     """
 
     url: str = ""
-    since: Optional[date] = None
-    before: Optional[date] = None
-    author_date: Optional[datetime] = None
+    since: date | None = None
+    before: date | None = None
+    author_date: datetime | None = None
     author_name: str = ""
     commit: str = ""
     file: str = ""
@@ -430,14 +432,14 @@ class Stats:
     def __init__(
         self,
         url: str = "",
-        since: Union[date, str, None] = None,
-        before: Union[date, str, None] = None,
-        author_date: Union[datetime, str, None] = None,
+        since: date | str | None = None,
+        before: date | str | None = None,
+        author_date: datetime | str | None = None,
         author_name: str = "",
         commit: str = "",
         file: str = "",
-        insertions: Union[int, str] = 0,
-        deletions: Union[int, str] = 0,
+        insertions: int | str = 0,
+        deletions: int | str = 0,
     ) -> None:
         if isinstance(since, str):
             since = get_iso_date(since)
@@ -466,7 +468,7 @@ _STATS_PATTERN: re.Pattern = re.compile(
 )
 
 
-def get_first_author_date(path: Union[str, Path] = "") -> date:
+def get_first_author_date(path: str | Path = "") -> date:
     output: str = check_output(
         (GIT, "log", "--reverse", "--date=iso8601-strict"),
         cwd=path,
@@ -478,7 +480,7 @@ def get_first_author_date(path: Union[str, Path] = "") -> date:
     raise ValueError(output)
 
 
-def _get_datetime_str(now: Union[datetime, date]) -> str:
+def _get_datetime_str(now: datetime | date) -> str:
     now_str: str = now.isoformat()
     if isinstance(now, datetime):
         now_str = now.isoformat()
@@ -492,8 +494,9 @@ def _get_datetime_str(now: Union[datetime, date]) -> str:
 def iter_local_repo_stats(
     path: str,
     author: str = "",
-    since: Union[date, datetime, None] = None,
-    before: Union[date, datetime, None] = None,
+    since: date | datetime | None = None,
+    before: date | datetime | None = None,
+    *,
     no_mailmap: bool = True,
 ) -> Iterable[Stats]:
     """
@@ -501,7 +504,7 @@ def iter_local_repo_stats(
     and/or date range
     """
     line: str
-    command: Tuple[str, ...] = (
+    command: tuple[str, ...] = (
         GIT,
         "--no-pager",
         "log",
@@ -544,7 +547,7 @@ def iter_local_repo_stats(
         if line.startswith("author_date:"):
             author_date = line[12:]
             continue
-        matched: Optional[re.Match] = _STATS_PATTERN.match(line)
+        matched: re.Match | None = _STATS_PATTERN.match(line)
         if not matched:
             raise ValueError(line)
         yield Stats(
@@ -587,11 +590,11 @@ def increment_date_by_frequency(today: date, frequency: Frequency) -> date:
 
 
 def get_date_range(
-    since: Optional[date] = None,
-    after: Optional[date] = None,
-    before: Optional[date] = None,
-    until: Optional[date] = None,
-) -> Tuple[date, date]:
+    since: date | None = None,
+    after: date | None = None,
+    before: date | None = None,
+    until: date | None = None,
+) -> tuple[date, date]:
     """
     Get a since/before date range
     """
@@ -608,17 +611,17 @@ def get_date_range(
     if since is None:
         raise ValueError((since, after, before, until))
     if not before:
-        before = date.today() + timedelta(days=1)
+        before = datetime.now(tz=timezone.utc).date() + timedelta(days=1)
     return since, before
 
 
 def iter_date_ranges(
-    since: Optional[date] = None,
-    after: Optional[date] = None,
-    before: Optional[date] = None,
-    until: Optional[date] = None,
-    frequency: Union[Frequency, str, None] = None,
-) -> Iterable[Tuple[date, date]]:
+    since: date | None = None,
+    after: date | None = None,
+    before: date | None = None,
+    until: date | None = None,
+    frequency: Frequency | str | None = None,
+) -> Iterable[tuple[date, date]]:
     """
     Iterate over all date ranges for the specified time period
 
@@ -662,12 +665,12 @@ def iter_date_ranges(
 
 
 def _iter_date_range_map(
-    frequency: Union[str, Frequency],
-    since: Optional[date] = None,
-    after: Optional[date] = None,
-    before: Optional[date] = None,
-    until: Optional[date] = None,
-) -> Iterable[Tuple[date, Tuple[date, date]]]:
+    frequency: str | Frequency,
+    since: date | None = None,
+    after: date | None = None,
+    before: date | None = None,
+    until: date | None = None,
+) -> Iterable[tuple[date, tuple[date, date]]]:
     period_since: date
     period_before: date
     for period_since, period_before in iter_date_ranges(
@@ -684,27 +687,28 @@ def _iter_date_range_map(
 
 
 def get_date_range_map(
-    frequency: Union[str, Frequency],
-    since: Optional[date] = None,
-    after: Optional[date] = None,
-    before: Optional[date] = None,
-    until: Optional[date] = None,
-) -> Dict[date, Tuple[date, date]]:
+    frequency: str | Frequency,
+    since: date | None = None,
+    after: date | None = None,
+    before: date | None = None,
+    until: date | None = None,
+) -> dict[date, tuple[date, date]]:
     """
     Get dictionary mapping dates to date ranges
     """
     return dict(_iter_date_range_map(frequency, since, after, before, until))
 
 
-def iter_stats(
-    urls: Union[str, Iterable[str]],
+def iter_stats(  # noqa: C901
+    urls: str | Iterable[str],
     user: str = "",
     password: str = "",
-    since: Optional[date] = None,
-    after: Optional[date] = None,
-    before: Optional[date] = None,
-    until: Optional[date] = None,
-    frequency: Union[str, Frequency, None] = None,
+    since: date | None = None,
+    after: date | None = None,
+    before: date | None = None,
+    until: date | None = None,
+    frequency: str | Frequency | None = None,
+    *,
     no_mailmap: bool = False,
 ) -> Iterable[Stats]:
     """
@@ -729,7 +733,7 @@ def iter_stats(
     """
     if isinstance(frequency, str):
         frequency = parse_frequency_string(frequency)
-    urls_paths: Iterable[Tuple[str, str]] = iter_clone(
+    urls_paths: Iterable[tuple[str, str]] = iter_clone(
         urls, user, password, since=since
     )
     url: str
@@ -741,11 +745,12 @@ def iter_stats(
                 since = get_first_author_date(path)
             else:
                 since = min(get_first_author_date(path), since)
-    assert since is not None
+    if since is None:
+        raise ValueError((since, after, before, until))
     if before is None:
-        before = date.today() + timedelta(days=1)
+        before = datetime.now(tz=timezone.utc).date() + timedelta(days=1)
     since, before = get_date_range(since, after, before, until)
-    date_range_map: Dict[date, Tuple[date, date]] = {}
+    date_range_map: dict[date, tuple[date, date]] = {}
     if frequency is not None:
         date_range_map = get_date_range_map(
             frequency, since=since, before=before
@@ -767,17 +772,18 @@ def iter_stats(
             yield stats
 
 
-def get_string_value(value: Union[str, date, float, int, None]) -> str:
+def get_string_value(value: str | date | float | None) -> str:
     if isinstance(value, date):
         return value.isoformat()
-    elif value is None:
+    if value is None:
         return ""
     return str(value)
 
 
 def write_markdown_table(
-    file: Union[str, Path, TextIO],
-    rows: List[Tuple[str, ...]],
+    file: str | Path | TextIO,
+    rows: list[tuple[str, ...]],
+    *,
     no_header: bool = False,
 ) -> None:
     """
@@ -789,16 +795,16 @@ def write_markdown_table(
     - rows (List[Tuple[str, ...]): The rows in the table.
     """
     if isinstance(file, (str, Path)):
-        file = open(file, "w")
+        file = open(file, "w")  # noqa: SIM115
     if rows and no_header:
         rows = rows[1:]
     if not rows:
         return
     index: int
-    row: Tuple[str, ...]
-    indices: Tuple[int, ...] = tuple(range(len(rows[0])))
-    column_widths: Tuple[int, ...] = tuple(
-        map(lambda index: max(map(lambda row: len(row[index]), rows)), indices)
+    row: tuple[str, ...]
+    indices: tuple[int, ...] = tuple(range(len(rows[0])))
+    column_widths: tuple[int, ...] = tuple(
+        max(len(row[index]) for row in rows) for index in indices
     )
     empty_value: str = " " * max(column_widths)
     is_header: bool = bool(not no_header)
@@ -822,13 +828,12 @@ def write_markdown_table(
         is_header = False
 
 
-def _get_file_path(file: Union[str, Path, TextIO]) -> Optional[Path]:
+def _get_file_path(file: str | Path | TextIO) -> Path | None:
     if isinstance(file, (str, Path)):
         if isinstance(file, str):
             return Path(file)
-        else:
-            return file
-    elif hasattr(file, "name"):
+        return file
+    if hasattr(file, "name"):
         return Path(file.name)
     return None
 
@@ -839,17 +844,18 @@ def _get_path_delimiter(path: Path) -> str:
 
 
 @cache
-def _get_stats_field_names() -> Tuple[str, ...]:
+def _get_stats_field_names() -> tuple[str, ...]:
     field: Field
-    return tuple(map(lambda field: field.name, fields(Stats)))
+    return tuple(field.name for field in fields(Stats))
 
 
 def write_stats(
     stats: Iterable[Stats],
-    file: Union[str, Path, TextIO],
+    file: str | Path | TextIO,
+    *,
     no_header: bool = False,
     delimiter: str = "",
-    markdown: Optional[bool] = None,
+    markdown: bool | None = None,
 ) -> None:
     """
     Write stats for all specified repositories, by author, for the specified
@@ -869,7 +875,7 @@ def write_stats(
     - no_header (bool) = False: Do not include a header in the output
     """
     # Determine the output format
-    path: Optional[Path] = _get_file_path(file)
+    path: Path | None = _get_file_path(file)
     if (not (markdown or delimiter)) and (path is not None):
         delimiter = _get_path_delimiter(path)
     if markdown is None:
@@ -879,14 +885,15 @@ def write_stats(
         )
     # Open a file for writing, if necessary
     file_io: TextIO
-    if isinstance(file, (str, Path)):
-        file_io = open(file, "w")
-    else:
-        file_io = file
+    file_io = (
+        open(file, "w")  # noqa: SIM115
+        if isinstance(file, (str, Path))
+        else file
+    )
     # Get the header
-    field_names: Tuple[str, ...] = _get_stats_field_names()
+    field_names: tuple[str, ...] = _get_stats_field_names()
     # The `rows` list will only be needed for markdown output
-    rows: List[Tuple[str, ...]]
+    rows: list[tuple[str, ...]]
     # The CSV writer will only be needed for CSV/TSV output
     csv_writer: Any
     if markdown:
@@ -902,7 +909,7 @@ def write_stats(
             csv_writer.writerow(field_names)
     stat: Stats
     for stat in stats:
-        row: Tuple[str, ...] = tuple(
+        row: tuple[str, ...] = tuple(
             map(
                 get_string_value,
                 map(stat.__getattribute__, field_names),
@@ -917,19 +924,19 @@ def write_stats(
 
 
 def read_stats(
-    file: Union[str, Path, TextIO],
+    file: str | Path | TextIO,
     delimiter: str = "",
 ) -> Iterable[Stats]:
     if not delimiter:
-        path: Optional[Path] = _get_file_path(file)
+        path: Path | None = _get_file_path(file)
         if path is not None:
             delimiter = _get_path_delimiter(path)
     if isinstance(file, (str, Path)):
-        file = open(file, errors="ignore")
+        file = open(file, errors="ignore")  # noqa: SIM115
     if delimiter:
         delimiter = delimiter.replace("\\t", "\t")
-    field_names: List[str] = list(_get_stats_field_names())
-    row: List[str]
+    field_names: list[str] = list(_get_stats_field_names())
+    row: list[str]
     check_header: bool = True
     for row in csv.reader(
         file,

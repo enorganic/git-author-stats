@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 import sys
-from collections.abc import Iterable
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING
 
-import pandas  # type: ignore
-import polars
+import pandas as pd  # type: ignore
+import polars as pl
 import pytest
 
 from git_author_stats._stats import (
@@ -23,6 +24,9 @@ from git_author_stats._stats import (
     read_stats,
     write_stats,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 ROOT_PATH: Path = Path(__file__).absolute().parent.parent
 STATS_CSV_PATH: Path = ROOT_PATH / "tests/stats.csv"
@@ -62,8 +66,8 @@ def test_increment_date_by_frequency() -> None:
 
 
 def test_iter_date_ranges() -> None:
-    period_since: Optional[date]
-    period_before: Optional[date]
+    period_since: date | None
+    period_before: date | None
     since: date = date(2020, 1, 1)
     before: date = date(2022, 9, 30)
     # Weekly
@@ -72,7 +76,8 @@ def test_iter_date_ranges() -> None:
         before=before,
         frequency=Frequency(1, FrequencyUnit.WEEK),
     ):
-        assert period_since and period_before
+        assert period_since
+        assert period_before
         assert period_before == min(before, period_since + timedelta(days=7))
     # Bi-Weekly
     for period_since, period_before in iter_date_ranges(
@@ -80,7 +85,8 @@ def test_iter_date_ranges() -> None:
         before=before,
         frequency=Frequency(2, FrequencyUnit.WEEK),
     ):
-        assert period_since and period_before
+        assert period_since
+        assert period_before
         assert period_before == min(before, period_since + timedelta(days=14))
     # Monthly
     for period_since, period_before in iter_date_ranges(
@@ -88,7 +94,8 @@ def test_iter_date_ranges() -> None:
         before=before,
         frequency=Frequency(1, FrequencyUnit.MONTH),
     ):
-        assert period_since and period_before
+        assert period_since
+        assert period_before
         assert (
             timedelta(days=31)
             >= (period_before - period_since)
@@ -100,7 +107,8 @@ def test_iter_date_ranges() -> None:
         before=before,
         frequency=Frequency(2, FrequencyUnit.MONTH),
     ):
-        assert period_since and period_before
+        assert period_since
+        assert period_before
         assert (
             timedelta(days=62)
             >= (period_before - period_since)
@@ -112,18 +120,18 @@ def test_iter_repo_stats() -> None:
     """
     Test creating a pandas data frame from the stats of a single repository.
     """
-    stats: Tuple[Stats, ...] = tuple(
+    stats: tuple[Stats, ...] = tuple(
         iter_stats(
             urls="https://github.com/enorganic/git-author-stats.git",
             frequency=Frequency(1, FrequencyUnit.WEEK),
-            since=date.today() - timedelta(days=365),
+            since=datetime.now(tz=timezone.utc).date() - timedelta(days=365),
         )
     )
     assert stats
-    pandas_data_frame: pandas.DataFrame = pandas.DataFrame(stats)
-    field_names: List[str] = list(_get_stats_field_names())
+    pandas_data_frame: pd.DataFrame = pd.DataFrame(stats)
+    field_names: list[str] = list(_get_stats_field_names())
     assert pandas_data_frame.columns.tolist() == field_names, stats
-    polars_data_frame: polars.DataFrame = polars.DataFrame(stats)
+    polars_data_frame: pl.DataFrame = pl.DataFrame(stats)
     assert polars_data_frame.columns == field_names, stats
 
 
@@ -136,7 +144,7 @@ def test_get_first_author_date() -> None:
 
 def test_cli() -> None:
     # Markdown
-    lines: List[str] = (
+    lines: list[str] = (
         check_output(
             (
                 sys.executable,
@@ -146,7 +154,9 @@ def test_cli() -> None:
                 "-f",
                 "1w",
                 "--since",
-                (date.today() - timedelta(days=365)).isoformat(),
+                (
+                    datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+                ).isoformat(),
                 "-md",
             ),
         )
@@ -165,7 +175,9 @@ def test_cli() -> None:
                 "-f",
                 "1w",
                 "--since",
-                (date.today() - timedelta(days=365)).isoformat(),
+                (
+                    datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+                ).isoformat(),
             ),
         )
         .strip()
@@ -186,7 +198,8 @@ def test_read_write() -> None:
             iter_stats(
                 urls="https://github.com/git/git.git",
                 frequency=Frequency(1, FrequencyUnit.WEEK),
-                since=date.today() - timedelta(days=30),
+                since=datetime.now(tz=timezone.utc).date()
+                - timedelta(days=30),
             ),
             STATS_CSV_PATH,
         )

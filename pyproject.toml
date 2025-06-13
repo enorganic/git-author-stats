@@ -21,7 +21,7 @@ dependencies = []
 
 [project.optional-dependencies]
 github = [
-    "PyGithub~=2.3",
+    "PyGithub~=2.6",
 ]
 
 [project.scripts]
@@ -35,16 +35,17 @@ Repository = "https://github.com/enorganic/git-author-stats"
 packages = [
     "src/git_author_stats",
 ]
-sources = ["src"]
+sources = [
+    "src",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = [
     "src/git_author_stats",
 ]
-sources = ["src"]
-
-# [tool.hatch.build.targets.wheel.hooks.mypyc]
-# dependencies = ["hatch-mypyc"]
+sources = [
+    "src",
+]
 
 [tool.hatch.envs.default]
 python = "3.9"
@@ -66,7 +67,11 @@ pre-install-commands = [
 ]
 
 [tool.hatch.envs.hatch-static-analysis]
-extra-dependencies = ["pytest", "mypy", "dependence~=1.0"]
+extra-dependencies = [
+    "pytest",
+    "mypy",
+    "dependence~=1.0",
+]
 pre-install-commands = [
     "pip install --upgrade pip",
 ]
@@ -99,14 +104,23 @@ pre-install-commands = []
 post-install-commands = []
 
 [[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+python = [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13",
+]
 
 [tool.ruff]
 line-length = 79
 
 [tool.ruff.lint]
 ignore = [
-    "F842", "INP001"
+    "F842",
+    "INP001",
+    "ICN001",
+    "PLR2004",
 ]
 extend-select = [
     "E",
@@ -143,7 +157,7 @@ files = [
     "tests",
 ]
 exclude = [
-    "tests/projects",
+    "tests/test_projects",
 ]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
@@ -152,6 +166,9 @@ disallow_incomplete_defs = true
 fail_under = 80
 
 [tool.coverage.run]
-source = ["src"]
-omit = ["src/**/__main__.py"]
-
+source = [
+    "src",
+]
+omit = [
+    "src/**/__main__.py",
+]

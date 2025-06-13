@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import os
 import sys
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Tuple
 
-import pandas
+import pandas  # type: ignore
 import polars
 import pytest
 from dotenv import load_dotenv
@@ -33,10 +34,10 @@ def test_iter_organization_stats() -> None:
     assert password
     found: bool = False
     stats: Stats
-    for stats in iter_stats(
+    for _stats in iter_stats(
         urls="https://github.com/enorganic",
         frequency=Frequency(2, FrequencyUnit.WEEK),
-        since=date.today() - timedelta(days=365),
+        since=datetime.now(tz=timezone.utc).date() - timedelta(days=365),
         password=password,
     ):
         found = True
@@ -46,7 +47,7 @@ def test_iter_organization_stats() -> None:
 
 def test_iter_organization_repository_clone_urls() -> None:
     # Unauthenticated
-    unauthenticated_urls: Tuple[str, ...] = tuple(
+    unauthenticated_urls: tuple[str, ...] = tuple(
         iter_organization_repository_clone_urls("github.com/enorganic")
     )
     assert "https://github.com/enorganic/git-author-stats.git" in (
@@ -57,7 +58,7 @@ def test_iter_organization_repository_clone_urls() -> None:
         os.environ.get("GH_TOKEN", "").strip()
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
-    authenticated_urls: Tuple[str, ...] = tuple(
+    authenticated_urls: tuple[str, ...] = tuple(
         iter_organization_repository_clone_urls(
             "github.com/enorganic",
             password=password,
@@ -77,16 +78,16 @@ def test_iter_repo_stats() -> None:
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
-    stats: Tuple[Stats, ...] = tuple(
+    stats: tuple[Stats, ...] = tuple(
         iter_stats(
             urls="https://github.com/enorganic/git-author-stats.git",
             frequency=Frequency(2, FrequencyUnit.WEEK),
-            since=date.today() - timedelta(days=365),
+            since=datetime.now(tz=timezone.utc).date() - timedelta(days=365),
             password=password,
         )
     )
     assert stats
-    field_names: List[str] = list(_get_stats_field_names())
+    field_names: list[str] = list(_get_stats_field_names())
     pandas_data_frame: pandas.DataFrame = pandas.DataFrame(stats)
     assert pandas_data_frame.columns.tolist() == field_names, stats
     polars_data_frame: polars.DataFrame = polars.DataFrame(stats)
@@ -100,7 +101,7 @@ def test_cli_repo() -> None:
     )
     assert password
     # Markdown
-    lines: List[str] = (
+    lines: list[str] = (
         check_output(
             (
                 sys.executable,
@@ -110,7 +111,9 @@ def test_cli_repo() -> None:
                 "-f",
                 "1w",
                 "--since",
-                (date.today() - timedelta(days=365)).isoformat(),
+                (
+                    datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+                ).isoformat(),
                 "-p",
                 password,
                 "-md",
@@ -131,7 +134,9 @@ def test_cli_repo() -> None:
                 "-f",
                 "1w",
                 "--since",
-                (date.today() - timedelta(days=365)).isoformat(),
+                (
+                    datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+                ).isoformat(),
                 "-p",
                 password,
             ),
@@ -148,7 +153,7 @@ def test_cli_org() -> None:
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
-    lines: List[str] = (
+    lines: list[str] = (
         check_output(
             (
                 sys.executable,
@@ -158,7 +163,9 @@ def test_cli_org() -> None:
                 "-f",
                 "1w",
                 "--since",
-                (date.today() - timedelta(days=365)).isoformat(),
+                (
+                    datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+                ).isoformat(),
                 "-p",
                 password,
             ),

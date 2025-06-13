@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import argparse
 import re
 import sys
 import warnings
 
-from ._stats import get_iso_date, iter_stats, write_stats
+from git_author_stats._stats import get_iso_date, iter_stats, write_stats
 
 
 class _HelpFormatter(argparse.HelpFormatter):
