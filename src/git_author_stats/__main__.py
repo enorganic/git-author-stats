@@ -7,7 +7,6 @@ from ._stats import get_iso_date, iter_stats, write_stats
 
 
 class _HelpFormatter(argparse.HelpFormatter):
-
     def format_help(self) -> str:
         return re.sub(
             r"(\bREGULAR_EXPRESSION_ALIAS\b)([\s\n]+)(\1)",

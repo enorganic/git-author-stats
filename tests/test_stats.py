@@ -1,8 +1,9 @@
 import sys
+from collections.abc import Iterable
 from datetime import date, timedelta
 from io import StringIO
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import pandas  # type: ignore
 import polars
@@ -192,7 +193,7 @@ def test_read_write() -> None:
     stats: Iterable[Stats] = read_stats(STATS_CSV_PATH)
     if STATS_TSV_PATH.exists():
         tsv_contents: str
-        with open(STATS_TSV_PATH, "rt", errors="ignore") as file:
+        with open(STATS_TSV_PATH, errors="ignore") as file:
             tsv_contents = file.read().strip()
         # Explicitly indicate the file format
         tsv_io: StringIO = StringIO()
@@ -211,7 +212,7 @@ def test_read_write() -> None:
         write_stats(stats, STATS_TSV_PATH)
     if STATS_MD_PATH.exists():
         md_contents: str
-        with open(STATS_MD_PATH, "rt", errors="ignore") as file:
+        with open(STATS_MD_PATH, errors="ignore") as file:
             md_contents = file.read().strip()
         # Explicitly indicate the file format
         md_io: StringIO = StringIO()

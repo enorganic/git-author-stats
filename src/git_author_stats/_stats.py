@@ -2,6 +2,7 @@ import csv
 import os
 import re
 import shutil
+from collections.abc import Iterable
 from copy import copy
 from dataclasses import Field, dataclass, fields
 from datetime import date, datetime, timedelta, timezone
@@ -22,7 +23,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Iterable,
     List,
     Optional,
     TextIO,
@@ -30,9 +30,8 @@ from typing import (
     Union,
     cast,
 )
-from urllib.parse import ParseResult
+from urllib.parse import ParseResult, urlparse, urlunparse
 from urllib.parse import quote as _quote
-from urllib.parse import urlparse, urlunparse
 
 cache: Callable[[Callable], Callable]
 try:
@@ -648,8 +647,9 @@ def iter_date_ranges(
     period: int = 1
     new_period_before: date
     while period_since < before:
-        yield period_since, (
-            min(period_before, before) if before else period_before
+        yield (
+            period_since,
+            (min(period_before, before) if before else period_before),
         )
         increment_frequency = copy(frequency)
         period += 1
@@ -789,7 +789,7 @@ def write_markdown_table(
     - rows (List[Tuple[str, ...]): The rows in the table.
     """
     if isinstance(file, (str, Path)):
-        file = open(file, "wt")
+        file = open(file, "w")
     if rows and no_header:
         rows = rows[1:]
     if not rows:
@@ -828,9 +828,8 @@ def _get_file_path(file: Union[str, Path, TextIO]) -> Optional[Path]:
             return Path(file)
         else:
             return file
-    else:
-        if hasattr(file, "name"):
-            return Path(file.name)
+    elif hasattr(file, "name"):
+        return Path(file.name)
     return None
 
 
@@ -881,7 +880,7 @@ def write_stats(
     # Open a file for writing, if necessary
     file_io: TextIO
     if isinstance(file, (str, Path)):
-        file_io = open(file, "wt")
+        file_io = open(file, "w")
     else:
         file_io = file
     # Get the header
@@ -926,7 +925,7 @@ def read_stats(
         if path is not None:
             delimiter = _get_path_delimiter(path)
     if isinstance(file, (str, Path)):
-        file = open(file, "rt", errors="ignore")
+        file = open(file, errors="ignore")
     if delimiter:
         delimiter = delimiter.replace("\\t", "\t")
     field_names: List[str] = list(_get_stats_field_names())

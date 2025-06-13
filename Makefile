@@ -1,87 +1,86 @@
 SHELL := bash
-PYTHON_VERSION := 3.8
+.PHONY: docs
+MINIMUM_PYTHON_VERSION := 3.9
 
-# Create or update your local virtual environment
+# Create all environments
 install:
-	{ rm -R venv || echo "" ; } && \
-	{ python$(PYTHON_VERSION) -m venv venv || py -$(PYTHON_VERSION) -m venv venv ; } && \
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	pip install --upgrade pip && \
-	pip install -r dev_requirements.txt -r requirements.txt -e '.[all]' && \
-	{ mypy --install-types --non-interactive || echo "" ; } && \
+	{ hatch --version || pipx install --upgrade hatch || python3 -m pip install --upgrade hatch ; } && \
+	hatch env create default && \
+	hatch env create docs && \
+	hatch env create hatch-static-analysis && \
+	hatch env create hatch-test && \
 	echo "Installation complete"
 
-# Create or update a CI/CD virtual environment
-ci-install:
-	{ python3 -m venv venv || py -3 -m venv venv ; } && \
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	python3 -m pip install --upgrade pip && \
-	pip install -r requirements.txt -e '.[all]' && \
-	echo "Installation complete"
-
-# Create your local virtual environment from scratch, ignoring frozen requirements
+# Re-create all environments, from scratch (no reference to pinned
+# requirements)
 reinstall:
-	{ rm -R venv || echo "" ; } && \
-	{ python$(PYTHON_VERSION) -m venv venv || py -$(PYTHON_VERSION) -m venv venv ; } && \
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	pip install --upgrade pip && \
-	pip install -r dev_requirements.txt -r ci_requirements.txt -r test_requirements.txt -e '.[all]' && \
-	{ mypy --install-types --non-interactive || echo "" ; } && \
-	make requirements && \
-	echo "Installation complete"
+	{ hatch --version || pipx install --upgrade hatch || python3 -m pip install --upgrade hatch ; } && \
+	hatch env prune && \
+	make && \
+	make requirements
 
-# Cleanup your virtual environment of un-needed packages and
-# delete all files which are ignored by git and not needed for development
-clean:
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	daves-dev-tools uninstall-all\
-	 -e '.[all]'\
-     -e pyproject.toml\
-     -e tox.ini\
-     -e requirements.txt && \
-	daves-dev-tools clean -e .env
-
-# Distribute the package to PyPi
 distribute:
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	daves-dev-tools distribute --skip-existing
+	hatch build && hatch publish && rm -rf dist
 
-# Upgrade all dependencies in your virtual environment to their latest
-# compatible version, and update your project files to align with the
-# upgraded dependencies
+# This will upgrade all requirements, and refresh pinned requirements to
+# match
 upgrade:
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	dependence freeze\
-	 -nv '*' '.[all]' pyproject.toml tox.ini daves-dev-tools dependence jupyter \
-	 > .requirements.txt && \
-	pip install --upgrade --upgrade-strategy eager\
-	 -r dev_requirements.txt -r .requirements.txt && \
+	hatch run dependence freeze\
+	 --include-pointer /tool/hatch/envs/default\
+	 --include-pointer /project\
+	 pyproject.toml > .requirements.txt && \
+	hatch run pip install --upgrade --upgrade-strategy eager\
+	 -r .requirements.txt && \
+	rm .requirements.txt && \
+	hatch run docs:dependence freeze\
+	 --include-pointer /tool/hatch/envs/docs\
+	 --include-pointer /project\
+	 pyproject.toml > .requirements.txt && \
+	hatch run docs:pip install --upgrade --upgrade-strategy eager\
+	 -r .requirements.txt && \
+	hatch run hatch-static-analysis:dependence freeze\
+	 --include-pointer /tool/hatch/envs/docs\
+	 --include-pointer /project\
+	 pyproject.toml > .requirements.txt && \
+	hatch run hatch-static-analysis:pip install --upgrade --upgrade-strategy eager\
+	 -r .requirements.txt && \
+	hatch run hatch-test.py$(MINIMUM_PYTHON_VERSION):dependence freeze\
+	 --include-pointer /tool/hatch/envs/hatch-test\
+	 --include-pointer /project\
+	 pyproject.toml > .requirements.txt && \
+	hatch run hatch-test.py$(MINIMUM_PYTHON_VERSION):pip install --upgrade --upgrade-strategy eager\
+	 -r .requirements.txt && \
 	rm .requirements.txt && \
 	make requirements
 
-# Update your project requirement specifications to align with currently
-# installed version of all dependencies
+# This will update pinned requirements to align with the
+# package versions installed in each environment, and will align the project
+# dependency versions with those installed in the default environment
 requirements:
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	dependence update\
-	 -aen all\
-	 setup.cfg pyproject.toml tox.ini && \
-	dependence freeze\
-	 -e pip\
-	 -e wheel\
-	 '.[all]' pyproject.toml tox.ini ci_requirements.txt \
-	 > requirements.txt && \
-	dependence freeze -nv '*' -d 0 tox.ini > test_requirements.txt
+	hatch run dependence update\
+	 --include-pointer /tool/hatch/envs/default\
+	 --include-pointer /project\
+	 pyproject.toml && \
+	hatch run docs:dependence update pyproject.toml --include-pointer /tool/hatch/envs/docs && \
+	hatch run hatch-test.py$(MINIMUM_PYTHON_VERSION):dependence update pyproject.toml --include-pointer /tool/hatch/envs/hatch-test && \
+	hatch run hatch-static-analysis:dependence update pyproject.toml --include-pointer /tool/hatch/envs/hatch-static-analysis && \
+	echo "Requirements updated"
 
-# Run unit tests
+# Test & check linting/formatting (for local use only)
 test:
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	if [[ "$$(python -V)" = "Python $(PYTHON_VERSION)."* ]] ;\
-	then tox -r -p -o ;\
-	else tox -r -e pytest,pytest-github ;\
-	fi
+	{ hatch --version || pipx install --upgrade hatch || python3 -m pip install --upgrade hatch ; } && \
+	hatch fmt --check && hatch run mypy && hatch test -c
 
-# Apply formatting and run code quality checks
 format:
-	{ . venv/bin/activate || venv/Scripts/activate.bat ; } && \
-	isort . && black . && flake8 && mypy
+	hatch fmt --formatter
+	hatch fmt --linter
+	hatch run mypy && \
+	echo "Format Successful!"
+
+docs:
+	hatch run docs:mkdocs build && \
+	hatch run docs:mkdocs serve
+
+# Cleanup untracked files
+clean:
+	git clean -f -e .vscode -e .idea -x .

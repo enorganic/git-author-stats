@@ -1,5 +1,6 @@
+from collections.abc import Iterable
 from datetime import date
-from typing import Iterable, Optional
+from typing import Optional
 from urllib.parse import ParseResult, urlparse
 
 from github import Github
@@ -28,7 +29,9 @@ def iter_organization_repository_clone_urls(
     auth: Optional[Auth] = (
         Login(user, password)
         if user and password
-        else Token(password) if password else None
+        else Token(password)
+        if password
+        else None
     )
     github: Github = Github(auth=auth)
     if "://" not in url:
