@@ -19,8 +19,6 @@ jobs:
       uses: pypa/hatch@install
     - run: hatch fmt --check && hatch run mypy
   test:
-    permissions:
-      contents: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
