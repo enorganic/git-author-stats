@@ -190,7 +190,7 @@ def test_cli_org() -> None:
         password,
         # Limit the response to 100 lines to avoid memory issues
         "-l",
-        "100,",
+        "100",
     )
     lines: list[str]
     try:
