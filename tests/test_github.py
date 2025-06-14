@@ -3,9 +3,9 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from logging import Logger, getLogger
 from pathlib import Path
 from subprocess import CalledProcessError, list2cmdline
+from typing import TYPE_CHECKING
 
 import pandas  # type: ignore
 import polars
@@ -21,9 +21,13 @@ from git_author_stats._stats import (
     check_output,
     iter_stats,
 )
+from tests.utilities import get_print_logger
+
+if TYPE_CHECKING:
+    from logging import Logger
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
-log: Logger = getLogger(__name__)
+log: Logger = get_print_logger(__name__)
 
 
 def test_iter_organization_stats() -> None:
