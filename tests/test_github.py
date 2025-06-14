@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+from logging import Logger, getLogger
 from pathlib import Path
+from subprocess import CalledProcessError, list2cmdline
 
 import pandas  # type: ignore
 import polars
@@ -21,6 +23,7 @@ from git_author_stats._stats import (
 )
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
+log: Logger = getLogger(__name__)
 
 
 def test_iter_organization_stats() -> None:
@@ -100,50 +103,61 @@ def test_cli_repo() -> None:
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
-    # Markdown
-    lines: list[str] = (
-        check_output(
-            (
-                sys.executable,
-                "-m",
-                "git_author_stats",
-                "https://github.com/enorganic/git-author-stats.git",
-                "-f",
-                "1w",
-                "--since",
-                (
-                    datetime.now(tz=timezone.utc).date() - timedelta(days=365)
-                ).isoformat(),
-                "-p",
-                password,
-                "-md",
-            ),
-        )
-        .strip()
-        .split("\n")
+    command: tuple[str, ...] = (
+        sys.executable,
+        "-m",
+        "git_author_stats",
+        "https://github.com/enorganic/git-author-stats.git",
+        "-f",
+        "1w",
+        "--since",
+        (
+            datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+        ).isoformat(),
+        "-p",
+        password,
+        "-md",
     )
+    # Markdown
+    lines: list[str]
+    try:
+        lines = (
+            check_output(
+                command,
+            )
+            .strip()
+            .split("\n")
+        )
+    except CalledProcessError:
+        log.exception(list2cmdline(command))
+        raise
     assert len(lines) > 2
     # CSV
-    lines = (
-        check_output(
-            (
-                sys.executable,
-                "-m",
-                "git_author_stats",
-                "https://github.com/enorganic/git-author-stats.git",
-                "-f",
-                "1w",
-                "--since",
-                (
-                    datetime.now(tz=timezone.utc).date() - timedelta(days=365)
-                ).isoformat(),
-                "-p",
-                password,
-            ),
-        )
-        .strip()
-        .split("\n")
+    command = (
+        sys.executable,
+        "-m",
+        "git_author_stats",
+        "https://github.com/enorganic/git-author-stats.git",
+        "-f",
+        "1w",
+        "--since",
+        (
+            datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+        ).isoformat(),
+        "-p",
+        password,
     )
+    try:
+        lines = (
+            check_output(
+                command,
+            )
+            .strip()
+            .split("\n")
+        )
+    except CalledProcessError:
+        log.exception(list2cmdline(command))
+        raise
     assert len(lines) > 1
 
 
