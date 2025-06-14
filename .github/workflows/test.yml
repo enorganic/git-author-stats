@@ -38,9 +38,9 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Hatch
       uses: pypa/hatch@install
-    - run: echo $(hatch run python -m git_author_stats https://github.com/enorganic -f 1w --since 2024-06-14 -p ${{ github.token }}) | head -n 10
+    - run: echo $(hatch run python -m git_author_stats https://github.com/enorganic -f 1w --since 2024-06-14 -p ${{ secrets.GH_TOKEN }}) | head -n 10
     - name: test
       env:
-        GH_TOKEN: ${{ github.token }}
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
         PYTHONUNBUFFERED: 1
       run: hatch test -c -py ${{ matrix.python }}
