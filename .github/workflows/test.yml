@@ -1,24 +1,24 @@
 name: test
 on:
-  workflow_dispatch:
   push:
     branches:
     - main
+  workflow_dispatch:
   pull_request:
     paths:
-    - git_author_stats/**
-    - pyproject.toml
-    - setup.py
-    - setup.cfg
+    - src/**
     - pyproject.toml
     - tests/**
-    - requirements.txt
-    - tox.ini
-    - .github/**
+    - .github/workflows/test.yml
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Hatch
+      uses: pypa/hatch@install
+    - run: hatch fmt --check && hatch run mypy
   test:
-    permissions:
-      contents: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -27,21 +27,17 @@ jobs:
         - windows-latest
         - macos-latest
         python:
-        - 3.8
         - 3.9
         - '3.10'
         - 3.11
         - 3.12
+        - 3.13
     steps:
     - uses: actions/checkout@v4
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python }}
-    - name: install
-      run: make ci-install
+    - name: Install Hatch
+      uses: pypa/hatch@install
     - name: test
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
         PYTHONUNBUFFERED: 1
-      run: make test
+      run: hatch test -c -py ${{ matrix.python }}

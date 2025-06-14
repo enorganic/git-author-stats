@@ -1,28 +1,176 @@
 [build-system]
 requires = [
-    "setuptools",
+    "hatchling",
 ]
-build-backend = "setuptools.build_meta"
+build-backend = "hatchling.build"
+
+[project]
+name = "git-author-stats"
+version = "1.0.2"
+description = "Retrieve multi-repo time series Git stats by author"
+readme = "README.md"
+license = "MIT"
+requires-python = "~=3.9"
+authors = [
+    { email = "david@belais.me" },
+]
+keywords = [
+    "git",
+]
+dependencies = []
+
+[project.optional-dependencies]
+github = [
+    "PyGithub~=2.6",
+]
+
+[project.scripts]
+git-author-stats = "git_author_stats.__main__:main"
+
+[project.urls]
+Documentation = "https://git-author-stats.enorganic.org"
+Repository = "https://github.com/enorganic/git-author-stats"
+
+[tool.hatch.build.targets.sdist]
+packages = [
+    "src/git_author_stats",
+]
+sources = [
+    "src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/git_author_stats",
+]
+sources = [
+    "src",
+]
+
+[tool.hatch.envs.default]
+python = "3.9"
+dependencies = [
+    "pytest",
+    "mypy",
+    "dependence~=1.0",
+    "jupyter",
+    "black[jupyter]",
+    "polars",
+    "python-dotenv",
+    "jupyter",
+]
+features = [
+    "github",
+]
+pre-install-commands = [
+    "pip install --upgrade pip",
+]
+
+[tool.hatch.envs.hatch-static-analysis]
+extra-dependencies = [
+    "pytest",
+    "mypy",
+    "dependence~=1.0",
+]
+pre-install-commands = [
+    "pip install --upgrade pip",
+]
+post-install-commands = [
+    "hatch run hatch-static-analysis:mypy --install-types --non-interactive || echo",
+]
+
+[tool.hatch.envs.docs]
+python = "3.13"
+dependencies = [
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "black",
+    "dependence~=1.0",
+]
+pre-install-commands = []
+post-install-commands = []
+
+[tool.hatch.envs.hatch-test]
+extra-dependencies = [
+    "dependence~=1.0",
+    "python-dotenv",
+    "polars",
+    "pandas",
+]
+extra-args = ["-s", "-vv"]
+features = [
+    "github",
+]
+pre-install-commands = []
+post-install-commands = []
+randomize = true
+
+[[tool.hatch.envs.hatch-test.matrix]]
+python = [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13",
+]
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+ignore = [
+    "F842",
+    "INP001",
+    "ICN001",
+    "PLR2004",
+]
+extend-select = [
+    "E",
+    "F",
+    "UP",
+    "B",
+    "SIM",
+    "I",
+    "C",
+    "N",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 79
 
 [tool.black]
 line-length = 79
 target-version = [
-    "py38",
     "py39",
     "py310",
     "py311",
     "py312",
+    "py313",
 ]
 
-[tool.isort]
-profile = "black"
-src_paths = [
-    "git_author_stats",
+[tool.mypy]
+python_version = "3.9"
+files = [
+    "src",
     "tests",
-    "scripts",
-    "setup.py",
 ]
-line_length = 79
-wrap_length = 79
-multi_line_output = 3
-extend_skip = []
+exclude = [
+    "tests/test_projects",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.coverage.report]
+fail_under = 80
+
+[tool.coverage.run]
+source = [
+    "src",
+]
+omit = [
+    "src/**/__main__.py",
+]

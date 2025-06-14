@@ -6,7 +6,6 @@
 This package provides a CLI and library for extracting author "stats"
 (insertions and deletions) for a Git repository or Github organization.
 
-- [Documentation](https://git-author-stats.enorganic.org)
 - [Contributing](https://git-author-stats.enorganic.org/contributing)
 - [Report a Bug](https://github.com/enorganic/git-author-stats/issues)
 

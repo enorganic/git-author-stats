@@ -1,6 +1,6 @@
-from typing import Tuple
+from __future__ import annotations
 
-from ._stats import (
+from git_author_stats._stats import (
     Frequency,
     FrequencyUnit,
     Stats,
@@ -9,7 +9,7 @@ from ._stats import (
     write_stats,
 )
 
-__all__: Tuple[str, ...] = (
+__all__: tuple[str, ...] = (
     "iter_stats",
     "write_stats",
     "read_stats",

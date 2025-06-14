@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import os
 import sys
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
+from itertools import islice
 from pathlib import Path
-from typing import List, Tuple
+from subprocess import CalledProcessError, list2cmdline
+from typing import TYPE_CHECKING
 
-import pandas
+import pandas  # type: ignore
 import polars
 import pytest
 from dotenv import load_dotenv
@@ -18,8 +22,13 @@ from git_author_stats._stats import (
     check_output,
     iter_stats,
 )
+from tests.utilities import get_print_logger
+
+if TYPE_CHECKING:
+    from logging import Logger
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
+log: Logger = get_print_logger(__name__)
 
 
 def test_iter_organization_stats() -> None:
@@ -33,11 +42,14 @@ def test_iter_organization_stats() -> None:
     assert password
     found: bool = False
     stats: Stats
-    for stats in iter_stats(
-        urls="https://github.com/enorganic",
-        frequency=Frequency(2, FrequencyUnit.WEEK),
-        since=date.today() - timedelta(days=365),
-        password=password,
+    for _stats in islice(
+        iter_stats(
+            urls="https://github.com/enorganic",
+            frequency=Frequency(2, FrequencyUnit.WEEK),
+            since=datetime.now(tz=timezone.utc).date() - timedelta(days=365),
+            password=password,
+        ),
+        100,
     ):
         found = True
         break
@@ -46,7 +58,7 @@ def test_iter_organization_stats() -> None:
 
 def test_iter_organization_repository_clone_urls() -> None:
     # Unauthenticated
-    unauthenticated_urls: Tuple[str, ...] = tuple(
+    unauthenticated_urls: tuple[str, ...] = tuple(
         iter_organization_repository_clone_urls("github.com/enorganic")
     )
     assert "https://github.com/enorganic/git-author-stats.git" in (
@@ -57,7 +69,7 @@ def test_iter_organization_repository_clone_urls() -> None:
         os.environ.get("GH_TOKEN", "").strip()
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
-    authenticated_urls: Tuple[str, ...] = tuple(
+    authenticated_urls: tuple[str, ...] = tuple(
         iter_organization_repository_clone_urls(
             "github.com/enorganic",
             password=password,
@@ -77,16 +89,16 @@ def test_iter_repo_stats() -> None:
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
-    stats: Tuple[Stats, ...] = tuple(
+    stats: tuple[Stats, ...] = tuple(
         iter_stats(
             urls="https://github.com/enorganic/git-author-stats.git",
             frequency=Frequency(2, FrequencyUnit.WEEK),
-            since=date.today() - timedelta(days=365),
+            since=datetime.now(tz=timezone.utc).date() - timedelta(days=365),
             password=password,
         )
     )
     assert stats
-    field_names: List[str] = list(_get_stats_field_names())
+    field_names: list[str] = list(_get_stats_field_names())
     pandas_data_frame: pandas.DataFrame = pandas.DataFrame(stats)
     assert pandas_data_frame.columns.tolist() == field_names, stats
     polars_data_frame: polars.DataFrame = polars.DataFrame(stats)
@@ -99,46 +111,61 @@ def test_cli_repo() -> None:
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
-    # Markdown
-    lines: List[str] = (
-        check_output(
-            (
-                sys.executable,
-                "-m",
-                "git_author_stats",
-                "https://github.com/enorganic/git-author-stats.git",
-                "-f",
-                "1w",
-                "--since",
-                (date.today() - timedelta(days=365)).isoformat(),
-                "-p",
-                password,
-                "-md",
-            ),
-        )
-        .strip()
-        .split("\n")
+    command: tuple[str, ...] = (
+        sys.executable,
+        "-m",
+        "git_author_stats",
+        "https://github.com/enorganic/git-author-stats.git",
+        "-f",
+        "1w",
+        "--since",
+        (
+            datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+        ).isoformat(),
+        "-p",
+        password,
+        "-md",
     )
+    # Markdown
+    lines: list[str]
+    try:
+        lines = (
+            check_output(
+                command,
+            )
+            .strip()
+            .split("\n")
+        )
+    except CalledProcessError:
+        log.exception(list2cmdline(command))
+        raise
     assert len(lines) > 2
     # CSV
-    lines = (
-        check_output(
-            (
-                sys.executable,
-                "-m",
-                "git_author_stats",
-                "https://github.com/enorganic/git-author-stats.git",
-                "-f",
-                "1w",
-                "--since",
-                (date.today() - timedelta(days=365)).isoformat(),
-                "-p",
-                password,
-            ),
-        )
-        .strip()
-        .split("\n")
+    command = (
+        sys.executable,
+        "-m",
+        "git_author_stats",
+        "https://github.com/enorganic/git-author-stats.git",
+        "-f",
+        "1w",
+        "--since",
+        (
+            datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+        ).isoformat(),
+        "-p",
+        password,
     )
+    try:
+        lines = (
+            check_output(
+                command,
+            )
+            .strip()
+            .split("\n")
+        )
+    except CalledProcessError:
+        log.exception(list2cmdline(command))
+        raise
     assert len(lines) > 1
 
 
@@ -148,25 +175,35 @@ def test_cli_org() -> None:
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
-    lines: List[str] = (
-        check_output(
-            (
-                sys.executable,
-                "-m",
-                "git_author_stats",
-                "https://github.com/enorganic",
-                "-f",
-                "1w",
-                "--since",
-                (date.today() - timedelta(days=365)).isoformat(),
-                "-p",
-                password,
-            ),
-            echo=True,
-        )
-        .strip()
-        .split("\n")
+    command: tuple[str, ...] = (
+        sys.executable,
+        "-m",
+        "git_author_stats",
+        "https://github.com/enorganic",
+        "-f",
+        "1w",
+        "--since",
+        (
+            datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+        ).isoformat(),
+        "-p",
+        password,
+        # Limit the response to 100 lines to avoid memory issues
+        "-l",
+        "100",
     )
+    lines: list[str]
+    try:
+        lines = (
+            check_output(
+                command,
+            )
+            .strip()
+            .split("\n")
+        )
+    except CalledProcessError:
+        log.exception(list2cmdline(command))
+        raise
     assert len(lines) > 2
 
 
