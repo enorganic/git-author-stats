@@ -97,6 +97,7 @@ extra-dependencies = [
     "polars",
     "pandas",
 ]
+extra-args = ["-s", "-vv"]
 features = [
     "github",
 ]
