@@ -4,8 +4,18 @@ import argparse
 import re
 import sys
 import warnings
+from itertools import islice
+from typing import TYPE_CHECKING
 
-from git_author_stats._stats import get_iso_date, iter_stats, write_stats
+from git_author_stats._stats import (
+    Stats,
+    get_iso_date,
+    iter_stats,
+    write_stats,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class _HelpFormatter(argparse.HelpFormatter):
@@ -101,22 +111,35 @@ def main() -> None:
         action="store_true",
         help="Output a markdown table instead of CSV/TSV",
     )
+    parser.add_argument(
+        "-l",
+        "--limit",
+        default=0,
+        type=int,
+        help=(
+            "The maximum number of records to return. "
+            "The default is 0, indicating there is no limit."
+        ),
+    )
     parser.add_argument("url", type=str, nargs="+", help="Repository URL(s)")
     namespace: argparse.Namespace = parser.parse_args()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        stats: Iterable[Stats] = iter_stats(
+            urls=namespace.url,
+            user=namespace.user,
+            password=namespace.password,
+            since=get_iso_date(namespace.since),
+            after=get_iso_date(namespace.after),
+            before=get_iso_date(namespace.before),
+            until=get_iso_date(namespace.until),
+            frequency=namespace.frequency,
+            no_mailmap=namespace.no_mailmap,
+        )
+        if namespace.limit:
+            stats = islice(stats, namespace.limit)
         write_stats(
-            iter_stats(
-                urls=namespace.url,
-                user=namespace.user,
-                password=namespace.password,
-                since=get_iso_date(namespace.since),
-                after=get_iso_date(namespace.after),
-                before=get_iso_date(namespace.before),
-                until=get_iso_date(namespace.until),
-                frequency=namespace.frequency,
-                no_mailmap=namespace.no_mailmap,
-            ),
+            stats,
             file=sys.stdout,
             delimiter=namespace.delimiter,
             no_header=namespace.no_header,

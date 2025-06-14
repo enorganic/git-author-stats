@@ -6,11 +6,11 @@ for subsequent analysis.
 
 ```console
 $ git-author-stats -h
-usage: git-author-stats [-h] [-b BRANCH] [-u USER] [-p PASSWORD]
-                        [--since SINCE] [--after AFTER]
-                        [--before BEFORE] [--until UNTIL]
-                        [-f FREQUENCY] [--delimiter DELIMITER] [-nh]
-                        [-nm] [-md]
+usage: git-author-stats [-h] [-u USER] [-p PASSWORD] [--since SINCE]
+                        [--after AFTER] [--before BEFORE]
+                        [--until UNTIL] [-f FREQUENCY]
+                        [--delimiter DELIMITER] [-nh] [-nm] [-md]
+                        [-l LIMIT]
                         url [url ...]
 
 Print author stats for a Github organization or Git repository in
@@ -32,20 +32,23 @@ optional arguments:
                         date
   -f FREQUENCY, --frequency FREQUENCY
                         If provided, stats will be broken down over
-                        time intervals at the specified frequency. The
-                        frequency should be composed of an integer and
-                        unit of time (day, week, month, or year). For
-                        example, all of the following are valid: "1
-                        week", "1w", "2 weeks", "2weeks", "4 months",
-                        or "4m".
+                        time intervals at the specified frequency.
+                        The frequency should be composed of an
+                        integer and unit of time (day, week, month,
+                        or year). For example, all of the following
+                        are valid: "1 week", "1w", "2 weeks",
+                        "2weeks", "4 months", or "4m".
   --delimiter DELIMITER
                         The delimiter to use for CSV/TSV output
                         (default: ',')
   -nh, --no-header      Don't print the header row (only applies to
                         CSV/TSV output)
-  -nm, --no-mailmap     Don't use mailmap to map author names to email
-                        addresses
+  -nm, --no-mailmap     Don't use mailmap to map author names to
+                        email addresses
   -md, --markdown       Output a markdown table instead of CSV/TSV
+  -l LIMIT, --limit LIMIT
+                        The maximum number of records to return. The
+                        default is 0, indicating there is no limit.
 ```
 
 ## Examples

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+from itertools import islice
 from pathlib import Path
 from subprocess import CalledProcessError, list2cmdline
 from typing import TYPE_CHECKING
@@ -41,11 +42,14 @@ def test_iter_organization_stats() -> None:
     assert password
     found: bool = False
     stats: Stats
-    for _stats in iter_stats(
-        urls="https://github.com/enorganic",
-        frequency=Frequency(2, FrequencyUnit.WEEK),
-        since=datetime.now(tz=timezone.utc).date() - timedelta(days=365),
-        password=password,
+    for _stats in islice(
+        iter_stats(
+            urls="https://github.com/enorganic",
+            frequency=Frequency(2, FrequencyUnit.WEEK),
+            since=datetime.now(tz=timezone.utc).date() - timedelta(days=365),
+            password=password,
+        ),
+        100,
     ):
         found = True
         break
@@ -186,6 +190,9 @@ def test_cli_org() -> None:
                 ).isoformat(),
                 "-p",
                 password,
+                # Limit the response to 100 lines to avoid memory issues
+                "-l",
+                "100,",
             ),
             echo=True,
         )
