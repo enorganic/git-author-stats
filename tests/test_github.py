@@ -175,30 +175,36 @@ def test_cli_org() -> None:
         or os.environ.get("GITHUB_TOKEN", "").strip()
     )
     assert password
-    lines: list[str] = (
-        check_output(
-            (
-                sys.executable,
-                "-m",
-                "git_author_stats",
-                "https://github.com/enorganic",
-                "-f",
-                "1w",
-                "--since",
-                (
-                    datetime.now(tz=timezone.utc).date() - timedelta(days=365)
-                ).isoformat(),
-                "-p",
-                password,
-                # Limit the response to 100 lines to avoid memory issues
-                "-l",
-                "100,",
-            ),
-            echo=True,
-        )
-        .strip()
-        .split("\n")
+    command: tuple[str, ...] = (
+        sys.executable,
+        "-m",
+        "git_author_stats",
+        "https://github.com/enorganic",
+        "-f",
+        "1w",
+        "--since",
+        (
+            datetime.now(tz=timezone.utc).date() - timedelta(days=365)
+        ).isoformat(),
+        "-p",
+        password,
+        # Limit the response to 100 lines to avoid memory issues
+        "-l",
+        "100,",
     )
+    lines: list[str]
+    try:
+        lines = (
+            check_output(
+                command,
+                # echo=True,
+            )
+            .strip()
+            .split("\n")
+        )
+    except CalledProcessError:
+        log.exception(list2cmdline(command))
+        raise
     assert len(lines) > 2
 
 
