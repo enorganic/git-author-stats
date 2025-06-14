@@ -104,7 +104,7 @@ features = [
 pre-install-commands = []
 post-install-commands = []
 randomize = true
-retries = 2
+# retries = 2
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = [
