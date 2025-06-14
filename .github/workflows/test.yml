@@ -23,7 +23,6 @@ jobs:
       contents: write
     runs-on: ${{ matrix.os }}
     strategy:
-      max-parallel: 1
       matrix:
         os:
         - ubuntu-latest
@@ -44,4 +43,4 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
         PYTHONUNBUFFERED: 1
-      run: hatch test -c -py ${{ matrix.python }}
+      run: make && hatch test -c -py ${{ matrix.python }}
