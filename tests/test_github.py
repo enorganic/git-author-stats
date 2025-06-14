@@ -137,7 +137,7 @@ def test_cli_repo() -> None:
             .split("\n")
         )
     except CalledProcessError:
-        log.info(list2cmdline(command))
+        log.exception(list2cmdline(command))
         raise
     assert len(lines) > 2
     # CSV
@@ -164,7 +164,7 @@ def test_cli_repo() -> None:
             .split("\n")
         )
     except CalledProcessError:
-        log.info(list2cmdline(command))
+        log.exception(list2cmdline(command))
         raise
     assert len(lines) > 1
 
@@ -197,13 +197,12 @@ def test_cli_org() -> None:
         lines = (
             check_output(
                 command,
-                # echo=True,
             )
             .strip()
             .split("\n")
         )
     except CalledProcessError:
-        log.info(list2cmdline(command))
+        log.exception(list2cmdline(command))
         raise
     assert len(lines) > 2
 
