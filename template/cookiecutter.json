@@ -1,0 +1,14 @@
+{
+    "project_name": "",
+    "repository_url": "",
+    "token_environment_variable": "",
+    "initial_history_number_of_days": "730",
+    "stale_pull_request_open_days": "28",
+    "__prompts__": {
+        "project_name": " project_name - The name of your project (example: organization-git-author-stats)",
+        "token_environment_variable": "token_environment_variable - The name of an environment variable that contains your GitHub developer token, if needed (example: GITHUB_PASSWORD)",
+        "repository_url": "repository_url - The URL of the Git repository or organization (examples: github.com/organization or github.com/organization/organization-git-author-stats)",
+        "initial_history_number_of_days": "initial_history_number_of_days - The number of days of commit history to evaluate during the initial run (default: 730, which is 2 years)",
+        "stale_pull_request_open_days": "stale_pull_request_open_days - The maximum number of days a pull request can be open before it is considered stale (default: 28). This will effect the number of overlapping days which are retrieved for subsequent notebook runs."
+    }
+}
