@@ -50,6 +50,7 @@ sources = [
 [tool.hatch.envs.default]
 python = "3.9"
 dependencies = [
+    "gittable~=0.0",
     "pytest",
     "mypy",
     "dependence~=1.0",
