@@ -1,0 +1,17 @@
+**/*~
+**/.*
+build
+dist
+site
+**.pyc
+**.pyo
+**.egg
+**/__pycache__
+*.egg-info
+**/*.egg-info
+**/*.dist-info
+pip-wheel-metadata
+!.github
+!**/*.editorconfig
+!**/*.gitignore
+

@@ -86,6 +86,7 @@ dependencies = [
     "mkdocstrings[python]",
     "black",
     "dependence~=1.0",
+    "mkdocs-jupyter",
 ]
 pre-install-commands = []
 post-install-commands = []

@@ -1,11 +1,13 @@
 site_name: git-author-stats
-site_url: https://enorganic.github.io/git-author-stats/
+site_url: https://git-author-stats.enorganic.org
 repo_url: https://github.com/enorganic/git-author-stats/
 edit_uri: blob/main/docs/
 nav:
 - Introduction: 'index.md'
 - CLI Reference: 'cli.md'
 - API Reference: 'api.md'
+- Notebook Template: 'template.md'
+- Notebook Example: 'pypa-git-author-stats.ipynb'
 - Contributing: 'contributing.md'
 theme:
   name: material
@@ -34,6 +36,7 @@ theme:
         icon: material/toggle-switch-off
         name: Switch to system preference
 plugins:
+  - mkdocs-jupyter
   - search
   - autorefs
   - mkdocstrings:
