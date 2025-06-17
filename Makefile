@@ -78,6 +78,8 @@ format:
 	echo "Format Successful!"
 
 docs:
+	{ rm docs/pypa-git-author-stats.ipynb || true ; } && \
+	cp examples/pypa-git-author-stats/pypa-git-author-stats.ipynb docs/pypa-git-author-stats.ipynb && \
 	hatch run docs:mkdocs build && \
 	hatch run docs:mkdocs serve
 
