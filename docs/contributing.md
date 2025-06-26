@@ -2,7 +2,9 @@
 
 ## For Enorganic Contributors and Code Owners
 
-1.  Clone and Install
+1.  Install [hatch](https://hatch.pypa.io/latest/install/)
+
+2.  Clone and Install
 
     To install this project for development of *this library*,
     clone this repository (replacing "~/Code", below, with the directory
@@ -16,7 +18,7 @@
     make
     ```
 
-2.  Create a new branch for your changes (replacing "descriptive-branch-name"
+3.  Create a new branch for your changes (replacing "descriptive-branch-name"
     with a *descriptive branch name*, and replacing *feature* with *bugfix*
     if the branch addresses a bug):
 
@@ -24,20 +26,20 @@
     git branch feature/descriptive-branch-name
     ```
 
-3.  Make some changes.
-4.  Format and lint your code:
+4.  Make some changes.
+5.  Format and lint your code:
 
     ```shell
     make format
     ```
 
-5.  Test your changes:
+6.  Test your changes:
 
     ```shell
     make test
     ```
 
-6.  Push your changes and create a pull request.
+7.  Push your changes and create a pull request.
 
 ## For Everyone Else
 
