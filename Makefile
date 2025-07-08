@@ -72,8 +72,8 @@ test:
 	hatch fmt --check && hatch run mypy && hatch test -c
 
 format:
-	hatch fmt --formatter
-	hatch fmt --linter
+	hatch fmt --formatter && \
+	hatch fmt --linter && \
 	hatch run mypy && \
 	echo "Format Successful!"
 
